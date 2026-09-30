@@ -1,45 +1,45 @@
-import os
+# Analizador semántico para mini-Pascal.
+# Uso: analizadorSem <archivo.pas>
+# Hace el análisis léxico, sintáctico y semántico en una sola pasada. Corta en el
+# primer error sintáctico o semántico; si no hay errores imprime las tablas de símbolos.
+
 import sys
 
-sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), '..'))
+# Atributos de una entrada de la tabla de símbolos.
 VARIABLE, FUNCTION, PROCEDURE, PARAMETER, PROGRAM = 1, 2, 3, 4, 5
 ATTRIBUTE_NAMES = {
     VARIABLE: 'variable', FUNCTION: 'función', PROCEDURE: 'procedimiento',
     PARAMETER: 'parámetro', PROGRAM: 'programa'
 }
-# Unidad léxica producida por el analizador y consumida por el parser.
+
+
+# Token que el léxico le pasa al parser. En los ID, value es el lexema.
 class Token:
-    # name: categoría del token. value: atributo (vacío si no aplica). line_number: línea de origen.
     def __init__(self, name, value, line_number):
         self.name = name
         self.value = value
         self.line_number = line_number
 
-    # Formato de salida: <ID | symbolTable[n]>, <NAME, value> o <NAME>.
-    def __str__(self):
-        if self.name == 'ID':
-            return f'<ID | {self.value} | line {self.line_number}>'
-        elif self.value != '':
-            return f'<{self.name}, {self.value}>'
-        return f'<{self.name}>'
 
-
+# Tabla de símbolos de un ámbito (el global o el de un subprograma).
+# Es un diccionario lexema -> entrada, así que buscar e insertar es O(1).
 class SymbolTable:
     def __init__(self, name):
         self.table = {}
         self.name = name
-        
+
+    # Devuelve None si el nombre ya existe en este ámbito; el parser informa el error.
     def declare(self, lexeme, type_, attribute, line_declared):
         if lexeme in self.table:
-            return None           # redeclaración: el parser reporta el error
+            return None
         entry = SymbolTableEntry(lexeme, type_, attribute, line_declared)
         self.table[lexeme] = entry
         return entry
-    
+
     def lookup(self, lexeme):
         return self.table.get(lexeme)
 
-    # Escribe la tabla como una grilla: una fila por entrada, en orden de declaración.
+    # Una fila por entrada, en el orden en que se declararon.
     def print_table(self, output=sys.stdout):
         header = f"{'Lexema':<15} {'Tipo':<10} {'Atributo':<12} {'Línea decl.':<12} Referencias"
         output.write(f"\n=== Ámbito: {self.name} ===\n")
@@ -52,25 +52,25 @@ class SymbolTable:
             atributo = ATTRIBUTE_NAMES.get(entry.attribute, '?')
             refs = ', '.join(str(l) for l in entry.lines_referenced) or '-'
             output.write(f"{entry.name:<15} {tipo:<10} {atributo:<12} {entry.line_declared:<12} {refs}\n")
-   
+
 
 class SymbolTableEntry:
     def __init__(self, lexeme, type_, attribute, line_declared):
         self.name = lexeme
-        self.type = type_
+        self.type = type_                 # 'INTEGER', 'BOOLEAN' o None (programa, procedimiento)
         self.attribute = attribute
         self.line_declared = line_declared
         self.lines_referenced = []
-        self.params = []
+        self.params = []                  # tipos de los parámetros, en orden
+        self.tiene_retorno = False        # solo funciones: si en su cuerpo se asigna el resultado
 
-# Analizador léxico para un subconjunto del lenguaje Pascal.
+
+# Analizador léxico. Entrega un token por llamada a get_next_token, o None al final del archivo.
 class LexiAnalyzer:
-    # Abre el archivo fuente y carga el primer carácter, las palabras reservadas y los mensajes de error.
     def __init__(self, archivo):
         self.file = open(archivo, 'r')
         self.line_number = 1
         self.current_char = self.file.read(1)
-        #self.symbol_table = SymbolTable()
 
         self.keywords = {
             "program": 'PROGRAM', "var": 'VAR', "integer": 'INTEGER',
@@ -84,15 +84,13 @@ class LexiAnalyzer:
         self.errors = {
             "COMMENT": "Comentario no cerrado. Se esperaba una llave de cierre.",
             "UNRECOGNIZED_CHAR": "Carácter no reconocido.",
-            "ASIGN": "Se esperaba un '=' después de ':'.",
             "NUM_ERROR": "Número mal formado. No se permiten letras después de dígitos."
         }
 
-    # Avanza un carácter en el archivo.
     def next_char(self):
         self.current_char = self.file.read(1)
 
-    # Punto de entrada principal: consume caracteres hasta reconocer y retornar el siguiente token.
+    # Saltea blancos y comentarios y reconoce el siguiente token.
     def get_next_token(self) -> Token:
         while self.current_char:
             match self.current_char:
@@ -184,7 +182,7 @@ class LexiAnalyzer:
                     self.print_error(self.errors["UNRECOGNIZED_CHAR"])
                     self.next_char()
 
-    # Consume todos los caracteres hasta la llave de cierre '}', descartando el comentario.
+    # Descarta todo hasta la '}' de cierre, contando las líneas.
     def recognize_comment(self):
         while self.current_char and self.current_char != '}':
             if self.current_char == '\n':
@@ -196,7 +194,7 @@ class LexiAnalyzer:
         else:
             self.print_error(self.errors["COMMENT"])
 
-    # Reconoce un identificador o palabra reservada; retorna el token correspondiente.
+    # Pascal no distingue mayúsculas, así que el lexema se pasa a minúsculas.
     def recognize_id_or_keyword(self) -> Token:
         lexeme = ""
         while self.current_char and self.current_char.isalnum():
@@ -210,7 +208,7 @@ class LexiAnalyzer:
             return Token(name, lexeme, self.line_number)
         return Token(name, '', self.line_number)
 
-    # Reconoce un literal entero; reporta error y retorna None si le siguen letras al número.
+    # Si al número le siguen letras (ej: 12abc) informa el error, descarta todo y sigue con el próximo token.
     def recognize_number(self) -> Token:
         lexeme = ""
         while self.current_char and self.current_char.isdigit():
@@ -225,56 +223,65 @@ class LexiAnalyzer:
 
         return Token('NUM', lexeme, self.line_number)
 
-    # Imprime un error léxico indicando la línea donde ocurrió.
+    # Los errores léxicos se informan pero no detienen el análisis.
     def print_error(self, msg):
         print(f"Error Léxico en línea {self.line_number}: {msg}")
 
+
+# Error sintáctico o semántico. Detiene el análisis.
 class ParserError(Exception):
     pass
 
 
-# Analizador sintáctico descendente recursivo predictivo para mini-Pascal.
+# Parser descendente recursivo predictivo. Cada método _xxx corresponde a un no terminal
+# de la gramática. Los chequeos semánticos se hacen mientras se reconoce el programa.
 class Parser:
     def __init__(self, source_file):
         self.lex = LexiAnalyzer(source_file)
         self.lookahead = self.lex.get_next_token()
-        self.scopeStack = []  
-        self.tables = []    
+        self.scopeStack = []    # ámbitos abiertos; el tope es el actual
+        self.tables = []        # todas las tablas creadas, para imprimirlas al final
+        # Subprogramas que se están analizando: la entrada si es función, None si es procedimiento.
+        self.subprogramas = []
 
+    # --- Tabla de símbolos ---
 
     def get_table(self):
-        return self.scopeStack[-1]  
-
-    def unstack_table(self):
-        if len(self.scopeStack) > 1:
-            self.scopeStack.pop()
-
+        return self.scopeStack[-1]
 
     def new_table(self, name):
         new_table = SymbolTable(name)
         self.scopeStack.append(new_table)
         self.tables.append(new_table)
 
+    # El ámbito global nunca se cierra.
+    def unstack_table(self):
+        if len(self.scopeStack) > 1:
+            self.scopeStack.pop()
+
     def _declare(self, tok, type_, attribute):
         entry = self.get_table().declare(tok.value, type_, attribute, tok.line_number)
         if entry is None:
-            raise ParserError(f"Error semántico en línea {tok.line_number}: '{tok.value}' ya fue declarado en este ámbito")
+            self._error_semantico(tok.line_number, f"'{tok.value}' ya fue declarado en este ámbito")
         return entry
 
+    # Busca desde el ámbito actual hacia afuera y registra la línea donde se usa.
     def _lookup(self, tok):
         for table in reversed(self.scopeStack):
             entry = table.lookup(tok.value)
             if entry is not None:
                 entry.lines_referenced.append(tok.line_number)
                 return entry
-        raise ParserError(f"Error semántico en línea {tok.line_number}: '{tok.value}' no fue declarado")
+        self._error_semantico(tok.line_number, f"'{tok.value}' no fue declarado")
 
-    # Imprime todas las tablas en el orden en que se abrieron los ámbitos.
     def print_symbol_tables(self, output=sys.stdout):
         output.write("\n===== Tablas de Símbolos =====\n")
         for table in self.tables:
             table.print_table(output)
 
+    # --- Chequeos semánticos ---
+
+    # Verifica los operandos de un operador binario y devuelve el tipo del resultado.
     def _tipo_binario(self, op, izq, der, linea):
         if op in ('ADD', 'SUB', 'MUL', 'DIV'):
             esperado, resultado = 'INTEGER', 'INTEGER'
@@ -282,33 +289,39 @@ class Parser:
             esperado, resultado = 'BOOLEAN', 'BOOLEAN'
         elif op in ('LT', 'LE', 'GT', 'GE'):
             esperado, resultado = 'INTEGER', 'BOOLEAN'
-        else:  # EQ, NE: los dos lados del mismo tipo, cualquiera
+        else:  # EQ, NE: ambos lados del mismo tipo, cualquiera sea
             esperado, resultado = izq, 'BOOLEAN'
         if izq != esperado or der != esperado:
             self._error_semantico(linea, f"operador '{op}' aplicado a {izq} y {der}")
         return resultado
 
+    # Cantidad y tipo de los argumentos contra los parámetros declarados.
+    def _chequear_argumentos(self, entry, tipos, linea):
+        if len(tipos) != len(entry.params):
+            self._error_semantico(linea, f"'{entry.name}' espera {len(entry.params)} argumentos, se pasaron {len(tipos)}")
+        for i, (esperado, pasado) in enumerate(zip(entry.params, tipos), 1):
+            if esperado != pasado:
+                self._error_semantico(linea, f"argumento {i} de '{entry.name}': se esperaba {esperado}, se pasó {pasado}")
+
+    # Función cuyo cuerpo se está analizando (None si es un procedimiento o el programa principal).
+    def _funcion_actual(self):
+        return self.subprogramas[-1] if self.subprogramas else None
+
     def _error_semantico(self, linea, msg):
         raise ParserError(f"Error semántico en línea {linea}: {msg}")
 
+    # --- Auxiliares ---
 
-    # Punto de entrada. Verifica el programa completo y que no queden tokens.
     def parse(self):
         self._statement()
         if self.lookahead is not None:
             self._error("Tokens inesperados después del final del programa")
-
-    # --- Auxiliares ---
-
-    def _peek_token(self):
-        return self.lookahead
 
     def _peek(self):
         return self.lookahead.name if self.lookahead else None
 
     def _peek_value(self):
         return self.lookahead.value if self.lookahead else None
-
 
     def _line(self):
         return self.lookahead.line_number if self.lookahead else '?'
@@ -327,6 +340,8 @@ class Parser:
         return self._peek() in ('ID', 'NUM', 'TRUE', 'FALSE', 'PAR_ABRE', 'NOT')
 
     # --- Procedimientos de la gramática ---
+    # Los que reconocen un identificador devuelven su token, para tener lexema y línea
+    # después de avanzar el lookahead.
 
     def _statement(self):
         self._match('PROGRAM')
@@ -362,6 +377,7 @@ class Parser:
         if self._peek() == 'ID':
             self._sentencia_de_tipos()
 
+    # El tipo aparece después de la lista, así que primero se juntan los nombres y después se declaran.
     def _declaracion_de_var(self):
         ids = []
         self._lista_var(ids)
@@ -371,13 +387,12 @@ class Parser:
             self._declare(tok, tipo, VARIABLE)
 
     def _ident(self):
-        tok = self._peek_token()
+        tok = self.lookahead
         self._match('ID')
         return tok
 
     def _lista_var(self, toks):
-        tok = self._ident()
-        toks.append(tok)
+        toks.append(self._ident())
         self._lista_var_prima(toks)
 
     def _lista_var_prima(self, toks):
@@ -403,7 +418,7 @@ class Parser:
     def _lista_subprogramas_prima(self):
         if self._peek() == 'PUNTO_COMA':
             self._match('PUNTO_COMA')
-            # Admite el ';' final después del último subprograma (end; begin ...).
+            # Admite el ';' después del último subprograma (end; begin ...).
             if self._peek() in ('FUNCTION', 'PROCEDURE'):
                 self._lista_subprogramas()
 
@@ -416,14 +431,21 @@ class Parser:
         else:
             self._error("Se esperaba 'function' o 'procedure'")
 
+    # El nombre se declara en el ámbito de afuera; los parámetros y locales, en uno nuevo.
+    # Al terminar se verifica que la función haya asignado su resultado.
     def _funcion(self):
         self._match('FUNCTION')
         tok = self._ident()
         entry = self._declare(tok, None, FUNCTION)
         self.new_table(tok.value)
+        self.subprogramas.append(entry)
         self._funcion_prima(entry)
+        self.subprogramas.pop()
         self.unstack_table()
+        if not entry.tiene_retorno:
+            self._error_semantico(tok.line_number, f"la función '{tok.value}' no asigna un valor de retorno")
 
+    # El tipo de retorno viene después de los parámetros, por eso se completa acá.
     def _funcion_prima(self, entry):
         p = self._peek()
         if p == 'PAR_ABRE':
@@ -447,7 +469,9 @@ class Parser:
         tok = self._ident()
         entry = self._declare(tok, None, PROCEDURE)
         self.new_table(tok.value)
+        self.subprogramas.append(None)
         self._procedimiento_prima(entry)
+        self.subprogramas.pop()
         self.unstack_table()
 
     def _procedimiento_prima(self, entry):
@@ -464,6 +488,7 @@ class Parser:
         else:
             self._error("Error en declaración de procedimiento: se esperaba '(' o ';'")
 
+    # Declara los parámetros en el ámbito del subprograma y guarda sus tipos en la entrada.
     def _param_formales(self, entry):
         toks = []
         self._lista_ident(toks)
@@ -471,7 +496,7 @@ class Parser:
         tipo = self._tipo()
         for tok in toks:
             self._declare(tok, tipo, PARAMETER)
-            entry.params.append((tipo))
+            entry.params.append(tipo)
         self._param_formales_prima(entry)
 
     def _param_formales_prima(self, entry):
@@ -508,8 +533,9 @@ class Parser:
         if p == 'END':
             return
         if p == 'ID':
-            self._lookup(self._ident())
-            self._sentencia_prima()
+            tok = self._ident()
+            entry = self._lookup(tok)
+            self._sentencia_prima(tok, entry)
         elif p == 'IF':
             self._alternativa()
         elif p == 'WHILE':
@@ -523,19 +549,38 @@ class Parser:
         else:
             self._error("Sentencia inválida")
 
-    def _sentencia_prima(self):
+    # Sentencia que empieza con un identificador: asignación o llamado a procedimiento.
+    def _sentencia_prima(self, tok, entry):
         p = self._peek()
         if p == 'OP_ASIG':
+            # A una función solo se le asigna dentro de su propio cuerpo (es su valor de retorno).
+            if entry.attribute == FUNCTION:
+                if entry is not self._funcion_actual():
+                    self._error_semantico(tok.line_number, f"no se puede asignar a la función '{tok.value}' fuera de su cuerpo")
+                entry.tiene_retorno = True
+            elif entry.attribute not in (VARIABLE, PARAMETER):
+                self._error_semantico(tok.line_number, f"no se puede asignar a '{tok.value}'")
+            linea = self._line()
             self._match('OP_ASIG')
-            self._expresion()
-        elif p == 'PAR_ABRE':
-            self._match('PAR_ABRE')
-            self._lista_expresion()
-            self._match('PAR_CIERRA')
+            tipo = self._expresion()
+            if tipo != entry.type:
+                self._error_semantico(linea, f"se asigna {tipo} a '{tok.value}' de tipo {entry.type}")
+        else:
+            args = self._llamada_funcion()
+            if entry.attribute != PROCEDURE:
+                self._error_semantico(tok.line_number, f"'{tok.value}' no es un procedimiento")
+            self._chequear_argumentos(entry, args or [], tok.line_number)
+
+    # Condición de if/while: tiene que ser booleana.
+    def _condicion(self, sentencia):
+        linea = self._line()
+        tipo = self._expresion()
+        if tipo != 'BOOLEAN':
+            self._error_semantico(linea, f"la condición del {sentencia} debe ser BOOLEAN, es {tipo}")
 
     def _alternativa(self):
         self._match('IF')
-        self._expresion()
+        self._condicion('if')
         self._match('THEN')
         self._sentencia()
         self._alternativa_prima()
@@ -547,14 +592,17 @@ class Parser:
 
     def _repetitiva(self):
         self._match('WHILE')
-        self._expresion()
+        self._condicion('while')
         self._match('DO')
         self._sentencia()
 
     def _lectura(self):
         self._match('READ')
         self._match('PAR_ABRE')
-        self._lookup(self._ident())
+        tok = self._ident()
+        entry = self._lookup(tok)
+        if entry.attribute not in (VARIABLE, PARAMETER):
+            self._error_semantico(tok.line_number, f"read: '{tok.value}' no es una variable")
         self._match('PAR_CIERRA')
 
     def _escritura(self):
@@ -563,14 +611,19 @@ class Parser:
         self._expresion()
         self._match('PAR_CIERRA')
 
-    def _lista_expresion(self):
-        self._expresion()
-        self._lista_expresion_prima()
+    # Junta en 'tipos' el tipo de cada argumento.
+    def _lista_expresion(self, tipos):
+        tipos.append(self._expresion())
+        self._lista_expresion_prima(tipos)
 
-    def _lista_expresion_prima(self):
+    def _lista_expresion_prima(self, tipos):
         if self._peek() == 'COMA':
             self._match('COMA')
-            self._lista_expresion()
+            self._lista_expresion(tipos)
+
+    # --- Expresiones ---
+    # Cada método devuelve el tipo de lo que reconoció. Los _prima reciben en 'izq'
+    # el tipo de lo ya leído a la izquierda del operador.
 
     def _expresion(self):
         izq = self._expresion_simple()
@@ -592,6 +645,7 @@ class Parser:
             self._error("Se esperaba un operador relacional")
         return op, linea
 
+    # Un signo adelante solo se permite sobre enteros.
     def _expresion_simple(self):
         if self._peek() == 'OP_ARIT' and self._peek_value() in ('ADD', 'SUB'):
             op, linea = self._signo()
@@ -624,6 +678,7 @@ class Parser:
         der = self._termino()
         return self._tipo_binario(op, izq, der, linea)
 
+    # _signo, _relacion y _operacion devuelven el operador y su línea.
     def _signo(self):
         linea = self._line()
         if self._peek() == 'OP_ARIT' and self._peek_value() in ('ADD', 'SUB'):
@@ -641,7 +696,6 @@ class Parser:
         if self._peek() == 'AND' or (self._peek() == 'OP_ARIT' and self._peek_value() in ('MUL', 'DIV')):
             return self._lista_terminos(izq)
         return izq
-
 
     def _lista_terminos(self, izq):
         op, linea = self._operacion()
@@ -665,7 +719,6 @@ class Parser:
             self._match('AND')
         else:
             self._error("Se esperaba '*', '/' o 'and'")
-
         return op, linea
 
     def _factor(self):
@@ -673,7 +726,17 @@ class Parser:
         if p == 'ID':
             tok = self._ident()
             entry = self._lookup(tok)
-            self._llamada_funcion()         
+            args = self._llamada_funcion()
+            if entry.attribute in (VARIABLE, PARAMETER):
+                if args is not None:
+                    self._error_semantico(tok.line_number, f"'{tok.value}' no es una función")
+            elif entry.attribute == FUNCTION:
+                # Sin paréntesis dentro de su propio cuerpo es la variable de retorno, no un llamado.
+                if args is None and entry is self._funcion_actual():
+                    self._error_semantico(tok.line_number, f"la variable de retorno '{tok.value}' no puede usarse en una expresión")
+                self._chequear_argumentos(entry, args or [], tok.line_number)
+            else:
+                self._error_semantico(tok.line_number, f"'{tok.value}' no puede usarse en una expresión")
             return entry.type
         elif p == 'NUM':
             self._numero()
@@ -686,7 +749,7 @@ class Parser:
             return 'BOOLEAN'
         elif p == 'PAR_ABRE':
             self._match('PAR_ABRE')
-            tipo = self._expresion()         
+            tipo = self._expresion()
             self._match('PAR_CIERRA')
             return tipo
         elif p == 'NOT':
@@ -699,14 +762,16 @@ class Parser:
         else:
             self._error("Error en factor")
 
-
+    # Devuelve los tipos de los argumentos, o None si no hay paréntesis
+    # (para distinguir 'f' de 'f()').
     def _llamada_funcion(self):
         if self._peek() == 'PAR_ABRE':
             self._match('PAR_ABRE')
-            self._lista_expresion()
+            tipos = []
+            self._lista_expresion(tipos)
             self._match('PAR_CIERRA')
-
-    
+            return tipos
+        return None
 
     def _numero(self):
         self._match('NUM')
@@ -714,13 +779,13 @@ class Parser:
 
 if __name__ == "__main__":
     if len(sys.argv) != 2:
-        print("Utilizar el comando: analizador <archivo.pas>")
+        print("Utilizar el comando: analizadorSem <archivo.pas>")
         sys.exit(1)
 
     try:
         parser = Parser(sys.argv[1])
         parser.parse()
-        print("Análisis sintáctico exitoso")
+        print("Análisis semántico exitoso")
         parser.print_symbol_tables()
     except ParserError as e:
         print(e)
