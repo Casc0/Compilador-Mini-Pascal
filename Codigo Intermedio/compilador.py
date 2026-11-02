@@ -6,6 +6,7 @@
 
 import io
 import os
+import re
 import sys
 
 # Atributos de una entrada de la tabla de símbolos.
@@ -378,8 +379,18 @@ class Parser:
         comentario = None
         if self.linea_consumida != self.ultima_linea_comentada:
             self.ultima_linea_comentada = self.linea_consumida
-            comentario = self.lex.lineas[self.linea_consumida - 1].strip() or None
+            comentario = self._sin_comentarios(self.lex.lineas[self.linea_consumida - 1]) or None
         self.codigo.emitir(instr, *args, etiqueta=etiqueta, comentario=comentario)
+
+    # Saca los comentarios de Pascal de una línea, para no anidar llaves en el comentario MEPA.
+    # Un '}' suelto cierra un comentario de líneas anteriores; un '{' suelto abre uno que sigue abajo.
+    @staticmethod
+    def _sin_comentarios(linea):
+        linea = re.sub(r'\{[^}]*\}', ' ', linea)
+        linea = linea[linea.rfind('}') + 1:]
+        if '{' in linea:
+            linea = linea[:linea.index('{')]
+        return ' '.join(linea.split())
 
     # --- Auxiliares ---
 

@@ -30,6 +30,14 @@ class TestPrograma(unittest.TestCase):
         self.assertIn("{ a := 1 }", texto)
         self.assertEqual(texto.count("{ a := 1 }"), 1)   # sólo en la primera instrucción de esa línea
 
+    def test_comentarios_pascal_en_la_linea(self):
+        fuente = ("program p; var x: integer;\nbegin\n  x := 1; { asigno uno }\n"
+                  "  { com\n  multilinea } x := 2;\n  write(x)\nend.")
+        texto = compilar_texto(fuente)
+        self.assertIn("{ x := 1; }", texto)
+        self.assertIn("{ x := 2; }", texto)
+        self.assertEqual(correr(fuente), [2])
+
     def test_texto_lo_entiende_el_interprete(self):
         self.assertEqual(correr("program p;\nbegin\n  write(2 + 3)\nend."), [5])
 
