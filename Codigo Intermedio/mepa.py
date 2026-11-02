@@ -1,6 +1,6 @@
 # Intérprete de la Máquina de Ejecución para Pascal (MEPA).
-# Uso: python mepa.py <archivo.mepa> [-t] [valores de entrada para LEER...]
-#      -t muestra cada instrucción ejecutada con el estado de la pila después de ejecutarla.
+# Uso: python mepa.py <archivo.mepa> [valores de entrada para LEER...]
+# Muestra cada instrucción ejecutada con el estado de la pila después de ejecutarla.
 # Implementa las instrucciones descriptas en el apunte MEPA2015. Lo usamos para verificar
 # que el código que genera el compilador hace lo que tiene que hacer.
 
@@ -188,20 +188,13 @@ def ejecutar(codigo, entrada=(), traza=None):
 
 
 if __name__ == "__main__":
-    args = sys.argv[1:]
-    con_traza = '-t' in args
-    if con_traza:
-        args.remove('-t')
-    if not args:
-        print("Utilizar el comando: python mepa.py <archivo.mepa> [-t] [valores de entrada...]")
+    if len(sys.argv) < 2:
+        print("Utilizar el comando: python mepa.py <archivo.mepa> [valores de entrada...]")
         sys.exit(1)
     try:
-        with open(args[0]) as f:
+        with open(sys.argv[1]) as f:
             codigo = f.read()
-        salida = ejecutar(codigo, [int(v) for v in args[1:]], traza=print if con_traza else None)
-        if not con_traza:
-            for valor in salida:
-                print(valor)
+        ejecutar(codigo, [int(v) for v in sys.argv[2:]], traza=print)
     except MepaError as e:
         print(f"Error de ejecución MEPA: {e}")
         sys.exit(1)
