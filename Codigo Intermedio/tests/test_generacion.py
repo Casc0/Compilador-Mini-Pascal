@@ -131,5 +131,47 @@ class TestProcedimientos(unittest.TestCase):
         self.assertEqual(correr(fuente, [42]), [42])
 
 
+class TestFunciones(unittest.TestCase):
+    def test_factorial_recursivo(self):
+        fuente = """program p; var a: integer;
+        function fact(n: integer): integer;
+        begin if n < 2 then fact := 1 else fact := fact(n - 1) * n end;
+        begin read(a); write(fact(a)) end."""
+        self.assertEqual(correr(fuente, [5]), [120])
+
+    def test_funcion_en_medio_de_expresion(self):
+        fuente = """program p; var x: integer;
+        function f(a: integer): integer; begin f := a * 10 end;
+        begin x := 1 + f(2) * 3; write(x) end."""
+        self.assertEqual(correr(fuente), [61])
+
+    def test_funcion_sin_parametros(self):
+        fuente = "program p; function c: integer; begin c := 3 end; begin write(c + c) end."
+        self.assertEqual(correr(fuente), [6])
+
+    def test_dos_llamadas_recursivas(self):
+        fuente = """program p;
+        function fib(n: integer): integer;
+        begin if n < 2 then fib := n else fib := fib(n - 1) + fib(n - 2) end;
+        begin write(fib(10)) end."""
+        self.assertEqual(correr(fuente), [55])
+
+    def test_retorno_desplazamiento(self):
+        cod = instrucciones("program p; function f(a, b: integer): integer; begin f := a end; begin write(f(1, 2)) end.")
+        self.assertIn("ALVL 1,-5", cod)   # -(2+3)
+        self.assertIn("RTPR 1,2", cod)
+
+    def test_llamada_reserva_lugar_antes_de_los_argumentos(self):
+        cod = instrucciones("program p; function f(a: integer): integer; begin f := a end; begin write(f(7)) end.")
+        i = cod.index("L1 NADA")
+        self.assertEqual(cod[i + 1:i + 5], ["RMEM 1", "APCT 7", "LLPR L2", "IMPR"])
+
+    def test_funcion_booleana(self):
+        fuente = """program p;
+        function par(n: integer): boolean; begin par := n / 2 * 2 = n end;
+        begin if par(4) and not par(3) then write(1) else write(0) end."""
+        self.assertEqual(correr(fuente), [1])
+
+
 if __name__ == "__main__":
     unittest.main()

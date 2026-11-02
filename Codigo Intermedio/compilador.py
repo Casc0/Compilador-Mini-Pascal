@@ -515,27 +515,33 @@ class Parser:
         entry = self._declare(tok, None, FUNCTION)
         self.new_table(tok.value)
         self.subprogramas.append(entry)
+        self._entrar_subprograma(entry)
         self._funcion_prima(entry)
+        self._emitir('RTPR', entry.nivel, len(entry.params))
         self.subprogramas.pop()
         self.unstack_table()
         if not entry.tiene_retorno:
             self._error_semantico(tok.line_number, f"la función '{tok.value}' no asigna un valor de retorno")
 
     # El tipo de retorno viene después de los parámetros, por eso se completa acá.
+    # El resultado va en el lugar que reservó el llamador debajo de los parámetros: -(n+3).
     def _funcion_prima(self, entry):
         p = self._peek()
         if p == 'PAR_ABRE':
             self._match('PAR_ABRE')
             self._param_formales(entry)
             self._match('PAR_CIERRA')
+            self._ubicar_parametros()
             self._match('DOS_PUNTOS')
             entry.type = self._tipo()
             self._match('PUNTO_COMA')
+            entry.desplazamiento = -(len(entry.params) + 3)
             self._bloque()
         elif p == 'DOS_PUNTOS':
             self._match('DOS_PUNTOS')
             entry.type = self._tipo()
             self._match('PUNTO_COMA')
+            entry.desplazamiento = -3
             self._bloque()
         else:
             self._error("Error en declaración de función: se esperaba '(' o ':'")
@@ -847,6 +853,9 @@ class Parser:
         if p == 'ID':
             tok = self._ident()
             entry = self._lookup(tok)
+            # Llamado a función: primero se reserva el lugar del resultado, después van los argumentos.
+            if entry.attribute == FUNCTION:
+                self._emitir('RMEM', 1)
             args = self._llamada_funcion()
             if entry.attribute in (VARIABLE, PARAMETER):
                 if args is not None:
@@ -860,6 +869,8 @@ class Parser:
                 self._error_semantico(tok.line_number, f"'{tok.value}' no puede usarse en una expresión")
             if entry.attribute in (VARIABLE, PARAMETER):
                 self._emitir('APVL', entry.nivel, entry.desplazamiento)
+            else:
+                self._emitir('LLPR', entry.etiqueta)
             return entry.type
         elif p == 'NUM':
             self._emitir('APCT', self._numero())
