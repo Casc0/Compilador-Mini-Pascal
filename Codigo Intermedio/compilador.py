@@ -434,8 +434,12 @@ class Parser:
         locales = self.get_table().cant_locales
         if locales:
             self._emitir('RMEM', locales)
+        # El código de los subprogramas queda en el medio: se lo saltea para ir al cuerpo.
         if self._peek() in ('FUNCTION', 'PROCEDURE'):
+            cuerpo = self.codigo.nueva_etiqueta()
+            self._emitir('DSVS', cuerpo)
             self._lista_subprogramas()
+            self._emitir('NADA', etiqueta=cuerpo)
         self._cuerpo()
         if locales:
             self._emitir('LMEM', locales)
@@ -542,7 +546,9 @@ class Parser:
         entry = self._declare(tok, None, PROCEDURE)
         self.new_table(tok.value)
         self.subprogramas.append(None)
+        self._entrar_subprograma(entry)
         self._procedimiento_prima(entry)
+        self._emitir('RTPR', entry.nivel, len(entry.params))
         self.subprogramas.pop()
         self.unstack_table()
 
@@ -552,6 +558,7 @@ class Parser:
             self._match('PAR_ABRE')
             self._param_formales(entry)
             self._match('PAR_CIERRA')
+            self._ubicar_parametros()
             self._match('PUNTO_COMA')
             self._bloque()
         elif p == 'PUNTO_COMA':
@@ -559,6 +566,20 @@ class Parser:
             self._bloque()
         else:
             self._error("Error en declaración de procedimiento: se esperaba '(' o ';'")
+
+    # La etiqueta se asigna antes del cuerpo para que un subprograma pueda llamarse a sí mismo.
+    def _entrar_subprograma(self, entry):
+        entry.nivel = self.get_table().nivel
+        entry.etiqueta = self.codigo.nueva_etiqueta()
+        self._emitir('ENPR', entry.nivel, etiqueta=entry.etiqueta)
+
+    # Los parámetros quedan debajo de la dirección de retorno y del D[k] guardado:
+    # el i-ésimo de n tiene desplazamiento -(n+3-i).
+    def _ubicar_parametros(self):
+        table = self.get_table()
+        params = [e for e in table.table.values() if e.attribute == PARAMETER]
+        for i, param in enumerate(params, 1):
+            param.nivel, param.desplazamiento = table.nivel, -(len(params) + 3 - i)
 
     # Declara los parámetros en el ámbito del subprograma y guarda sus tipos en la entrada.
     def _param_formales(self, entry):
@@ -643,6 +664,7 @@ class Parser:
             if entry.attribute != PROCEDURE:
                 self._error_semantico(tok.line_number, f"'{tok.value}' no es un procedimiento")
             self._chequear_argumentos(entry, args or [], tok.line_number)
+            self._emitir('LLPR', entry.etiqueta)
 
     # Condición de if/while: tiene que ser booleana.
     def _condicion(self, sentencia):
@@ -651,23 +673,39 @@ class Parser:
         if tipo != 'BOOLEAN':
             self._error_semantico(linea, f"la condición del {sentencia} debe ser BOOLEAN, es {tipo}")
 
+    # Si la condición es falsa salta a 'falso'; con else, la rama del then saltea la del else.
     def _alternativa(self):
         self._match('IF')
         self._condicion('if')
+        falso = self.codigo.nueva_etiqueta()
+        self._emitir('DSVF', falso)
         self._match('THEN')
         self._sentencia()
-        self._alternativa_prima()
+        self._alternativa_prima(falso)
 
-    def _alternativa_prima(self):
+    def _alternativa_prima(self, falso):
         if self._peek() == 'ELSE':
+            fin = self.codigo.nueva_etiqueta()
+            self._emitir('DSVS', fin)
+            self._emitir('NADA', etiqueta=falso)
             self._match('ELSE')
             self._sentencia()
+            self._emitir('NADA', etiqueta=fin)
+        else:
+            self._emitir('NADA', etiqueta=falso)
 
+    # Evalúa la condición al principio de cada vuelta; si es falsa sale del ciclo.
     def _repetitiva(self):
         self._match('WHILE')
+        inicio = self.codigo.nueva_etiqueta()
+        self._emitir('NADA', etiqueta=inicio)
         self._condicion('while')
+        fin = self.codigo.nueva_etiqueta()
+        self._emitir('DSVF', fin)
         self._match('DO')
         self._sentencia()
+        self._emitir('DSVS', inicio)
+        self._emitir('NADA', etiqueta=fin)
 
     def _lectura(self):
         self._match('READ')
@@ -677,6 +715,8 @@ class Parser:
         if entry.attribute not in (VARIABLE, PARAMETER):
             self._error_semantico(tok.line_number, f"read: '{tok.value}' no es una variable")
         self._match('PAR_CIERRA')
+        self._emitir('LEER')
+        self._emitir('ALVL', entry.nivel, entry.desplazamiento)
 
     def _escritura(self):
         self._match('WRITE')

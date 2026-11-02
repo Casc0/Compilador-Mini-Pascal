@@ -51,5 +51,85 @@ class TestExpresiones(unittest.TestCase):
                          ["APCT 2", "APCT 3", "MULT", "UMEN", "APCT 1", "SUMA"])
 
 
+class TestSentencias(unittest.TestCase):
+    def test_read_if_while(self):
+        fuente = """program p; var n, s: integer;
+        begin read(n); s := 0;
+          while s <= n do s := s + 3;
+          if s > 10 then write(1) else write(0);
+          if s = 9 then write(s)
+        end."""
+        self.assertEqual(correr(fuente, [7]), [0, 9])
+
+    def test_if_codigo_exacto(self):
+        self.assertEqual(instrucciones("program p; begin if true then write(1) else write(2) end."), [
+            "INPP", "APCT 1", "DSVF L1", "APCT 1", "IMPR",
+            "DSVS L2", "L1 NADA", "APCT 2", "IMPR", "L2 NADA", "PARA"])
+
+    def test_while_codigo_exacto(self):
+        self.assertEqual(instrucciones("program p; begin while false do write(1) end."), [
+            "INPP", "L1 NADA", "APCT 0", "DSVF L2", "APCT 1", "IMPR", "DSVS L1", "L2 NADA", "PARA"])
+
+
+# Programa de MEPA2015 pág. 12, adaptado a la gramática: sin el ';' antes de else
+# y write(n); write(g) porque write acepta una sola expresión.
+FUENTE_P_N_G = """program ejemplo;
+var k: integer;
+procedure p(n: integer; g: integer);
+var h: integer;
+begin
+  if n < 2 then h := g + n
+  else begin
+    h := g;
+    p(n - 1, h);
+    k := h;
+    p(n - 2, g)
+  end;
+  write(n);
+  write(g)
+end;
+begin
+  k := 0;
+  p(3, k)
+end.
+"""
+
+
+class TestProcedimientos(unittest.TestCase):
+    def test_procedimiento_del_apunte(self):
+        self.assertEqual(correr(FUENTE_P_N_G), [1, 0, 0, 0, 2, 0, 1, 0, 3, 0])
+
+    def test_misma_traduccion_que_el_apunte(self):
+        from test_mepa import COD_P_N_G
+        esperado = [' '.join(l.split()) for l in COD_P_N_G.splitlines() if l.strip()]
+        self.assertEqual(instrucciones(FUENTE_P_N_G), esperado)
+
+    def test_parametros_desplazamiento_negativo(self):
+        cod = instrucciones("program p; procedure q(a, b: integer); begin write(a - b) end; begin q(5, 2) end.")
+        self.assertIn("APVL 1,-4", cod)   # a, i=1, n=2
+        self.assertIn("APVL 1,-3", cod)   # b
+        self.assertIn("RTPR 1,2", cod)
+
+    def test_procedimiento_sin_params_ni_locales(self):
+        fuente = "program p; var x: integer; procedure q; begin x := x + 1 end; begin x := 0; q; q; write(x) end."
+        self.assertEqual(correr(fuente), [2])
+        cod = instrucciones(fuente)
+        self.assertIn("RTPR 1,0", cod)
+        self.assertNotIn("RMEM 0", cod)
+
+    def test_anidado_accede_al_padre_y_global(self):
+        fuente = """program p; var g: integer;
+        procedure a; var x: integer;
+          procedure b; begin x := x + g end;
+        begin x := 10; b; write(x) end;
+        begin g := 5; a end."""
+        self.assertEqual(correr(fuente), [15])
+        self.assertIn("ALVL 1,0", instrucciones(fuente))   # x desde b (nivel 2) se direcciona con nivel 1
+
+    def test_read_en_parametro(self):
+        fuente = "program p; procedure q(a: integer); begin read(a); write(a) end; begin q(0) end."
+        self.assertEqual(correr(fuente, [42]), [42])
+
+
 if __name__ == "__main__":
     unittest.main()
