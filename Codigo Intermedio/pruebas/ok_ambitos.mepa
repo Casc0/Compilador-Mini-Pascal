@@ -1,0 +1,65 @@
+      INPP                { program ambitos; }
+      RMEM  3             { par: boolean; }
+      DSVS  L1
+L2    ENPR  1             { function factorial(k: integer): integer; }
+      RMEM  1             { var n: integer; }
+      APVL  1,-3          { n := k; }
+      ALVL  1,0
+      APVL  1,0           { if n <= 1 then }
+      APCT  1
+      CMNI
+      DSVF  L3
+      APCT  1             { factorial := 1 }
+      ALVL  1,-4
+      DSVS  L4
+L3    NADA
+      APVL  1,0           { factorial := n * factorial(n - 1) }
+      RMEM  1
+      APVL  1,0
+      APCT  1
+      SUST
+      LLPR  L2
+      MULT
+      ALVL  1,-4
+L4    NADA
+      LMEM  1             { end; }
+      RTPR  1,1
+L5    ENPR  1             { function espar(x: integer): boolean; }
+      APVL  1,-3          { espar := (x / 2) * 2 = x }
+      APCT  2
+      DIVI
+      APCT  2
+      MULT
+      APVL  1,-3
+      CMIG
+      ALVL  1,-4
+      RTPR  1,1           { end; }
+L1    NADA
+      LEER                { read(n); }
+      ALVL  0,0
+      RMEM  1             { resultado := factorial(n); }
+      APVL  0,0
+      LLPR  L2
+      ALVL  0,1
+      RMEM  1             { par := espar(resultado); }
+      APVL  0,1
+      LLPR  L5
+      ALVL  0,2
+L6    NADA                { while not par do }
+      APVL  0,2
+      NEGA
+      DSVF  L7
+      APVL  0,1           { resultado := resultado + 1; }
+      APCT  1
+      SUMA
+      ALVL  0,1
+      RMEM  1             { par := espar(resultado) }
+      APVL  0,1
+      LLPR  L5
+      ALVL  0,2
+      DSVS  L6            { end; }
+L7    NADA
+      APVL  0,1           { write(resultado) }
+      IMPR
+      LMEM  3             { end. }
+      PARA

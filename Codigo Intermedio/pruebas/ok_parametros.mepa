@@ -1,0 +1,59 @@
+      INPP                { program parametros; }
+      RMEM  2             { activo: boolean; }
+      DSVS  L1
+L2    ENPR  1             { function ajustar(valor: integer; duplicar: boolean): integer; }
+      RMEM  1             { var aux: integer; }
+      APVL  1,-4          { aux := valor + 1; }
+      APCT  1
+      SUMA
+      ALVL  1,0
+      APVL  1,-3          { if duplicar then }
+      DSVF  L3
+      APVL  1,0           { ajustar := aux * 2 }
+      APCT  2
+      MULT
+      ALVL  1,-5
+      DSVS  L4
+L3    NADA
+      APVL  1,0           { ajustar := aux }
+      ALVL  1,-5
+L4    NADA
+      LMEM  1             { end; }
+      RTPR  1,2
+L5    ENPR  1             { procedure informar(n: integer; ok: boolean); }
+      APVL  1,-3          { if ok and (n > 0) then }
+      APVL  1,-4
+      APCT  0
+      CMMA
+      CONJ
+      DSVF  L6
+      APVL  1,-4          { write(n) }
+      IMPR
+      DSVS  L7
+L6    NADA
+      APCT  0             { write(0) }
+      IMPR
+L7    NADA
+      RTPR  1,2           { end; }
+L1    NADA
+      LEER                { read(total); }
+      ALVL  0,0
+      APVL  0,0           { activo := total >= 10; }
+      APCT  10
+      CMYI
+      ALVL  0,1
+      RMEM  1             { total := ajustar(total, activo); }
+      APVL  0,0
+      APVL  0,1
+      LLPR  L2
+      ALVL  0,0
+      APVL  0,0           { informar(total, not activo or (total = 20)) }
+      APVL  0,1
+      NEGA
+      APVL  0,0
+      APCT  20
+      CMIG
+      DISJ
+      LLPR  L5
+      LMEM  2             { end. }
+      PARA

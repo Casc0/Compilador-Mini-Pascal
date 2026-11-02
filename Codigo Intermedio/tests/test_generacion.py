@@ -1,6 +1,12 @@
+import os
+import subprocess
+import sys
+import tempfile
 import unittest
 
 from util import compilar_texto, instrucciones, correr
+from compilador import compilar, ParserError
+from mepa import ejecutar
 
 
 class TestPrograma(unittest.TestCase):
@@ -171,6 +177,54 @@ class TestFunciones(unittest.TestCase):
         function par(n: integer): boolean; begin par := n / 2 * 2 = n end;
         begin if par(4) and not par(3) then write(1) else write(0) end."""
         self.assertEqual(correr(fuente), [1])
+
+
+CARPETA = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+
+
+class TestCompilador(unittest.TestCase):
+    def test_error_lexico_no_genera(self):
+        with self.assertRaises(ParserError):
+            compilar_texto("program p; var a: integer; begin a := 1 # end.")
+
+    def _correr_cli(self, fuente):
+        d = tempfile.mkdtemp()
+        ruta = os.path.join(d, "prog.pas")
+        with open(ruta, "w") as f:
+            f.write(fuente)
+        res = subprocess.run([sys.executable, os.path.join(CARPETA, "compilador.py"), ruta],
+                             capture_output=True, text=True)
+        return res, os.path.join(d, "prog.mepa")
+
+    def test_cli_genera_archivo(self):
+        fuente = "program p; var a: integer; begin a := 2; write(a * 3) end."
+        res, mepa = self._correr_cli(fuente)
+        self.assertEqual(res.returncode, 0, res.stdout)
+        with open(mepa) as f:
+            self.assertEqual(f.read(), compilar_texto(fuente))
+        self.assertIn("prog.mepa", res.stdout)
+
+    def test_cli_error_no_genera(self):
+        res, mepa = self._correr_cli("program p; begin x := 1 end.")
+        self.assertEqual(res.returncode, 1)
+        self.assertIn("Error semántico", res.stdout)
+        self.assertFalse(os.path.exists(mepa))
+
+    def test_pruebas_ok_compilan_y_corren(self):
+        carpeta = os.path.join(CARPETA, "pruebas")
+        nombres = [n for n in os.listdir(carpeta)
+                   if n.endswith(".pas") and not n.startswith(("lex_", "sin_", "sem_"))]
+        self.assertTrue(nombres)
+        for nombre in nombres:
+            with self.subTest(prueba=nombre):
+                ejecutar(compilar(os.path.join(carpeta, nombre)).texto(), [5] * 20)
+
+    def test_pruebas_con_error_no_compilan(self):
+        carpeta = os.path.join(CARPETA, "pruebas")
+        for nombre in os.listdir(carpeta):
+            if nombre.startswith(("lex_", "sin_", "sem_")):
+                with self.subTest(prueba=nombre), self.assertRaises(ParserError):
+                    compilar(os.path.join(carpeta, nombre))
 
 
 if __name__ == "__main__":

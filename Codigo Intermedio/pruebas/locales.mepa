@@ -1,0 +1,31 @@
+      INPP                { program locales; }
+      RMEM  1             { var x: integer; }
+      DSVS  L1
+L2    ENPR  1             { procedure intercambiar; }
+      RMEM  2             { var a, b: integer; }
+      APVL  0,0           { a := x; }
+      ALVL  1,0
+      APVL  1,0           { b := a * 2; }
+      APCT  2
+      MULT
+      ALVL  1,1
+      APVL  1,1           { x := b - a + 1; }
+      APVL  1,0
+      SUST
+      APCT  1
+      SUMA
+      ALVL  0,0
+      APVL  1,0           { write(a); }
+      IMPR
+      APVL  1,1           { write(b) }
+      IMPR
+      LMEM  2             { end; }
+      RTPR  1,0
+L1    NADA
+      APCT  4             { x := 4; }
+      ALVL  0,0
+      LLPR  L2            { intercambiar; }
+      APVL  0,0           { write(x) }
+      IMPR
+      LMEM  1             { end. }
+      PARA

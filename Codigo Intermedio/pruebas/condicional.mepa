@@ -1,0 +1,26 @@
+      INPP                { program condicional; }
+      RMEM  2             { positivo: boolean; }
+      LEER                { read(n); }
+      ALVL  0,0
+      APVL  0,0           { positivo := n > 0; }
+      APCT  0
+      CMMA
+      ALVL  0,1
+      APVL  0,1           { if positivo then }
+      DSVF  L1
+      APCT  1             { write(1) }
+      IMPR
+      DSVS  L2
+L1    NADA
+      APCT  0             { write(0); }
+      IMPR
+L2    NADA
+      APVL  0,0           { if n = 0 then }
+      APCT  0
+      CMIG
+      DSVF  L3
+      APVL  0,0           { write(n) }
+      IMPR
+L3    NADA
+      LMEM  2             { end. }
+      PARA

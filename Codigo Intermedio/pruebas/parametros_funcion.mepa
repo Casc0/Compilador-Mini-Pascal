@@ -1,0 +1,28 @@
+      INPP                { program parametros; }
+      RMEM  1             { var r: integer; }
+      DSVS  L1
+L2    ENPR  1             { function maximo(a: integer; b: integer): integer; }
+      APVL  1,-4          { if a > b then }
+      APVL  1,-3
+      CMMA
+      DSVF  L3
+      APVL  1,-4          { maximo := a }
+      ALVL  1,-5
+      DSVS  L4
+L3    NADA
+      APVL  1,-3          { maximo := b }
+      ALVL  1,-5
+L4    NADA
+      RTPR  1,2           { end; }
+L1    NADA
+      RMEM  1             { r := maximo(3, 8) + 1; }
+      APCT  3
+      APCT  8
+      LLPR  L2
+      APCT  1
+      SUMA
+      ALVL  0,0
+      APVL  0,0           { write(r) }
+      IMPR
+      LMEM  1             { end. }
+      PARA

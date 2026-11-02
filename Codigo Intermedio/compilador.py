@@ -5,6 +5,7 @@
 # <archivo>.mepa e imprime las tablas de símbolos.
 
 import io
+import os
 import sys
 
 # Atributos de una entrada de la tabla de símbolos.
@@ -120,6 +121,7 @@ class LexiAnalyzer:
             texto = f.read()
         self.file = io.StringIO(texto)
         self.lineas = texto.splitlines()    # para comentar el código generado con el fuente
+        self.hubo_errores = False           # con errores léxicos no se genera código
         self.line_number = 1
         self.current_char = self.file.read(1)
 
@@ -276,6 +278,7 @@ class LexiAnalyzer:
 
     # Los errores léxicos se informan pero no detienen el análisis.
     def print_error(self, msg):
+        self.hubo_errores = True
         print(f"Error Léxico en línea {self.line_number}: {msg}")
 
 
@@ -916,11 +919,17 @@ class Parser:
         return valor
 
 
-# Analiza el programa y devuelve el código MEPA generado. Lanza ParserError si hay errores.
-def compilar(ruta):
+# Analiza el programa y devuelve el parser, con el código MEPA generado. Lanza ParserError si hay errores.
+def analizar(ruta):
     parser = Parser(ruta)
     parser.parse()
-    return parser.codigo
+    if parser.lex.hubo_errores:
+        raise ParserError("Hubo errores léxicos: no se genera código")
+    return parser
+
+
+def compilar(ruta):
+    return analizar(ruta).codigo
 
 
 if __name__ == "__main__":
@@ -929,10 +938,13 @@ if __name__ == "__main__":
         sys.exit(1)
 
     try:
-        parser = Parser(sys.argv[1])
-        parser.parse()
-        print("Análisis semántico exitoso")
-        parser.print_symbol_tables()
+        parser = analizar(sys.argv[1])
     except ParserError as e:
         print(e)
         sys.exit(1)
+
+    salida = os.path.splitext(sys.argv[1])[0] + '.mepa'
+    with open(salida, 'w') as f:
+        f.write(parser.codigo.texto())
+    print(f"Compilación exitosa: {salida}")
+    parser.print_symbol_tables()
