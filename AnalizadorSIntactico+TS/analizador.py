@@ -41,7 +41,7 @@ class SymbolTable:
 
     # Una fila por entrada, en el orden en que se declararon.
     def print_table(self, output=sys.stdout):
-        header = f"{'Lexema':<15} {'Tipo':<10} {'Atributo':<12} {'Línea decl.':<12} Referencias"
+        header = f"{'Lexema':<15} {'Tipo':<10} {'Atributo':<14} {'Línea decl.':<12} Referencias"
         output.write(f"\n=== Ámbito: {self.name} ===\n")
         output.write(header + "\n")
         output.write("-" * len(header) + "\n")
@@ -51,7 +51,7 @@ class SymbolTable:
             tipo = entry.type if entry.type is not None else '-'
             atributo = ATTRIBUTE_NAMES.get(entry.attribute, '?')
             refs = ', '.join(str(l) for l in entry.lines_referenced) or '-'
-            output.write(f"{entry.name:<15} {tipo:<10} {atributo:<12} {entry.line_declared:<12} {refs}\n")
+            output.write(f"{entry.name:<15} {tipo:<10} {atributo:<14} {entry.line_declared:<12} {refs}\n")
 
 
 class SymbolTableEntry:
