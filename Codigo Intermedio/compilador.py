@@ -14,6 +14,12 @@ ATTRIBUTE_NAMES = {
     PARAMETER: 'parámetro', PROGRAM: 'programa'
 }
 
+# Instrucción MEPA de cada operador binario.
+INSTR_OP = {
+    'ADD': 'SUMA', 'SUB': 'SUST', 'MUL': 'MULT', 'DIV': 'DIVI', 'AND': 'CONJ', 'OR': 'DISJ',
+    'LT': 'CMME', 'LE': 'CMNI', 'GT': 'CMMA', 'GE': 'CMYI', 'EQ': 'CMIG', 'NE': 'CMDG'
+}
+
 
 # Token que el léxico le pasa al parser. En los ID, value es el lexema.
 class Token:
@@ -701,7 +707,9 @@ class Parser:
         if self._peek() == 'OP_REL':
             op, linea = self._relacion()
             der = self._expresion_simple()
-            return self._tipo_binario(op, izq, der, linea)
+            tipo = self._tipo_binario(op, izq, der, linea)
+            self._emitir(INSTR_OP[op])
+            return tipo
         return izq
 
     def _relacion(self):
@@ -713,13 +721,15 @@ class Parser:
             self._error("Se esperaba un operador relacional")
         return op, linea
 
-    # Un signo adelante solo se permite sobre enteros.
+    # Un signo adelante solo se permite sobre enteros. El '-' niega el primer término.
     def _expresion_simple(self):
         if self._peek() == 'OP_ARIT' and self._peek_value() in ('ADD', 'SUB'):
             op, linea = self._signo()
             tipo = self._termino()
             if tipo != 'INTEGER':
                 self._error_semantico(linea, f"signo '{op}' aplicado a {tipo}")
+            if op == 'SUB':
+                self._emitir('UMEN')
             return self._expresion_simple_prima(tipo)
         elif self._es_inicio_de_factor():
             tipo = self._termino()
@@ -745,8 +755,7 @@ class Parser:
             self._error("Error en operador de expresión")
         der = self._termino()
         tipo = self._tipo_binario(op, izq, der, linea)
-        if op == 'ADD':
-            self._emitir('SUMA')
+        self._emitir(INSTR_OP[op])
         return tipo
 
     # _signo, _relacion y _operacion devuelven el operador y su línea.
@@ -772,6 +781,7 @@ class Parser:
         op, linea = self._operacion()
         der = self._factor()
         tipo = self._tipo_binario(op, izq, der, linea)
+        self._emitir(INSTR_OP[op])
         return self._lista_terminos_prima(tipo)
 
     def _lista_terminos_prima(self, izq):
@@ -833,6 +843,7 @@ class Parser:
             tipo = self._factor()
             if tipo != 'BOOLEAN':
                 self._error_semantico(linea, f"'not' aplicado a {tipo}")
+            self._emitir('NEGA')
             return 'BOOLEAN'
         else:
             self._error("Error en factor")

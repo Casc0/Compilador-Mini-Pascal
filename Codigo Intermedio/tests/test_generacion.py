@@ -28,5 +28,28 @@ class TestPrograma(unittest.TestCase):
         self.assertEqual(correr("program p;\nbegin\n  write(2 + 3)\nend."), [5])
 
 
+class TestExpresiones(unittest.TestCase):
+    casos = [
+        ("1 + (20 / 9 - 3) * 4", [-3]),
+        ("-5 + 2", [-3]),            # signo unario -> UMEN sobre el primer término
+        ("-(2 * 3)", [-6]),
+        ("+4", [4]),                 # '+' unario no emite nada
+        ("7 - 2 - 1", [4]),          # asociatividad izquierda
+        ("3 < 4", [1]), ("3 <= 3", [1]), ("3 > 4", [0]), ("3 >= 4", [0]),
+        ("3 = 3", [1]), ("3 <> 3", [0]), ("true = false", [0]),
+        ("true and false", [0]), ("true or false", [1]),
+        ("not (1 > 2)", [1]), ("not true or true", [1]),
+    ]
+
+    def test_expresiones(self):
+        for expr, esperado in self.casos:
+            with self.subTest(expr=expr):
+                self.assertEqual(correr(f"program p; begin write({expr}) end."), esperado)
+
+    def test_signo_aplica_al_primer_termino(self):
+        self.assertEqual(instrucciones("program p; begin write(-2 * 3 + 1) end.")[1:-2],
+                         ["APCT 2", "APCT 3", "MULT", "UMEN", "APCT 1", "SUMA"])
+
+
 if __name__ == "__main__":
     unittest.main()
