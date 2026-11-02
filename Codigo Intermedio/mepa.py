@@ -39,14 +39,18 @@ class MepaError(Exception):
     pass
 
 
-# Devuelve la lista de instrucciones (mnemónico, args, texto, comentario) y el diccionario
+# Devuelve la lista de instrucciones (mnemónico, args, texto, encabezado) y el diccionario
 # etiqueta -> índice. Acepta comentarios { ... } y una etiqueta L<n> delante de cualquier instrucción.
+# Una línea que sólo tiene un comentario (la línea del fuente) es el encabezado de la instrucción siguiente.
 def _cargar(codigo):
     programa, etiquetas = [], {}
+    encabezado = None
     for nro, linea in enumerate(codigo.splitlines(), 1):
         comentario = re.search(r'\{[^}]*\}', linea)
         linea = re.sub(r'\{[^}]*\}', '', linea).strip()
         if not linea:
+            if comentario:
+                encabezado = comentario.group(0)
             continue
         partes = linea.split(None, 1)
         if re.fullmatch(r'L\d+', partes[0]):
@@ -65,7 +69,8 @@ def _cargar(codigo):
                 args = [int(a) for a in args]
             except ValueError:
                 raise MepaError(f"línea {nro}: argumento no numérico en '{linea}'")
-        programa.append((instr, args, ' '.join(linea.split()), comentario and comentario.group(0)))
+        programa.append((instr, args, ' '.join(linea.split()), encabezado))
+        encabezado = None
     return programa, etiquetas
 
 
@@ -114,9 +119,9 @@ def ejecutar(codigo, entrada=(), traza=None):
     for _ in range(MAX_PASOS):
         if not 0 <= i < len(programa):
             raise MepaError("el programa terminó sin PARA")
-        instr, args, texto, comentario = programa[i]
-        if traza is not None and comentario:
-            traza(comentario)
+        instr, args, texto, encabezado = programa[i]
+        if traza is not None and encabezado:
+            traza(encabezado)
         i += 1
         impreso = None
         match instr:

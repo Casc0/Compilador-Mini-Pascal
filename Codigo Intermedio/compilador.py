@@ -22,6 +22,12 @@ INSTR_OP = {
     'LT': 'CMME', 'LE': 'CMNI', 'GT': 'CMMA', 'GE': 'CMYI', 'EQ': 'CMIG', 'NE': 'CMDG'
 }
 
+# Cómo se muestra cada operación binaria en la pila simbólica.
+SIMBOLO_OP = {
+    'SUMA': '+', 'SUST': '-', 'MULT': '*', 'DIVI': '/', 'CONJ': ' and ', 'DISJ': ' or ',
+    'CMME': '<', 'CMNI': '<=', 'CMMA': '>', 'CMYI': '>=', 'CMIG': '=', 'CMDG': '<>'
+}
+
 
 # Token que el léxico le pasa al parser. En los ID, value es el lexema.
 class Token:
@@ -82,7 +88,8 @@ class SymbolTableEntry:
         self.etiqueta = None              # solo subprogramas: dónde empieza su código
 
 
-# Código MEPA generado. Cada instrucción es (etiqueta, mnemónico, argumentos, comentario).
+# Código MEPA generado. Cada instrucción es (etiqueta, mnemónico, argumentos, comentario, pila):
+# el comentario es la línea del fuente de la que sale y la pila, su contenido simbólico después de ejecutarla.
 class CodigoMepa:
     def __init__(self):
         self.lineas = []
@@ -92,27 +99,25 @@ class CodigoMepa:
         self.cant_etiquetas += 1
         return f"L{self.cant_etiquetas}"
 
-    def emitir(self, instr, *args, etiqueta=None, comentario=None):
-        self.lineas.append((etiqueta, instr, args, comentario))
-
-    def emitir_etiqueta(self, etiqueta):
-        self.emitir('NADA', etiqueta=etiqueta)
+    def emitir(self, instr, *args, etiqueta=None, comentario=None, pila=None):
+        self.lineas.append((etiqueta, instr, args, comentario, pila))
 
     # Sin formato ni comentarios, para comparar en los tests: "APVL 0,1", "L1 NADA".
     def instrucciones(self):
         return [' '.join(p for p in (etq, instr, ','.join(map(str, args))) if p)
-                for etq, instr, args, _ in self.lineas]
+                for etq, instr, args, _, _ in self.lineas]
 
+    # La línea del fuente va como comentario arriba de sus instrucciones; la pila, a la derecha de cada una.
     def texto(self):
-        return ''.join(self._formatear(*linea) + '\n' for linea in self.lineas)
-
-    # Columnas como en el apunte: etiqueta, instrucción, argumentos y el comentario a la derecha.
-    @staticmethod
-    def _formatear(etiqueta, instr, args, comentario):
-        linea = f"{etiqueta or '':<6}{instr:<6}{','.join(map(str, args))}"
-        if comentario:
-            linea = f"{linea:<25} {{ {comentario} }}"
-        return linea.rstrip()
+        salida = []
+        for etiqueta, instr, args, comentario, pila in self.lineas:
+            if comentario:
+                salida.append(f"{{ {comentario} }}")
+            linea = f"{etiqueta or '':<6}{instr:<6}{','.join(map(str, args))}"
+            if pila:
+                linea = f"{linea:<20} {{ {pila} }}"
+            salida.append(linea.rstrip())
+        return ''.join(l + '\n' for l in salida)
 
 
 # Analizador léxico. Entrega un token por llamada a get_next_token, o None al final del archivo.
@@ -301,6 +306,10 @@ class Parser:
         self.codigo = CodigoMepa()
         self.linea_consumida = 1        # línea del último token consumido
         self.ultima_linea_comentada = None
+        # Pila simbólica: (texto, es_compuesto) por posición. Al entrar al código de un
+        # subprograma se guarda la de afuera, que vuelve al terminarlo.
+        self.pila = []
+        self.pilas_guardadas = []
 
     # --- Tabla de símbolos ---
 
@@ -375,12 +384,60 @@ class Parser:
     # --- Generación de código ---
 
     # La primera instrucción que sale de cada línea del fuente lleva esa línea como comentario.
-    def _emitir(self, instr, *args, etiqueta=None):
+    # 'simbolo' dice qué apila la instrucción cuando no se deduce de ella (ver _simular).
+    def _emitir(self, instr, *args, etiqueta=None, simbolo=None):
         comentario = None
         if self.linea_consumida != self.ultima_linea_comentada:
             self.ultima_linea_comentada = self.linea_consumida
             comentario = self._sin_comentarios(self.lex.lineas[self.linea_consumida - 1]) or None
-        self.codigo.emitir(instr, *args, etiqueta=etiqueta, comentario=comentario)
+        self._simular(instr, args, simbolo)
+        pila = ' '.join(texto for texto, _ in self.pila) or None
+        self.codigo.emitir(instr, *args, etiqueta=etiqueta, comentario=comentario, pila=pila)
+
+    # Actualiza la pila simbólica con el efecto de la instrucción. Como cada sentencia deja la
+    # pila como la encontró, su forma en cada punto del código se conoce al compilar.
+    def _simular(self, instr, args, simbolo):
+        pila = self.pila
+        if instr == 'INPP':
+            pila.clear()
+        elif instr == 'RMEM':
+            pila.extend((nombre, False) for nombre in simbolo)
+        elif instr == 'LMEM':
+            del pila[len(pila) - args[0]:]
+        elif instr == 'APCT':
+            pila.append((str(args[0]), False))
+        elif instr == 'APVL':
+            pila.append((simbolo, False))
+        elif instr == 'LEER':
+            pila.append(('read', False))
+        elif instr in ('ALVL', 'DSVF', 'IMPR'):
+            pila.pop()
+        elif instr in SIMBOLO_OP:
+            der, izq = pila.pop(), pila.pop()
+            pila.append((f"{self._operando(izq)}{SIMBOLO_OP[instr]}{self._operando(der)}", True))
+        elif instr == 'UMEN':
+            pila.append((f"-{self._operando(pila.pop())}", True))
+        elif instr == 'NEGA':
+            pila.append((f"not {self._operando(pila.pop())}", True))
+        elif instr == 'ENPR':
+            # Debajo queda lo que apiló el que llama, que no se conoce acá.
+            self.pilas_guardadas.append(list(pila))
+            pila[:] = [('...', False)] + [(n, False) for n in simbolo] + \
+                      [('ret', False), (f"D{args[0]}ant", False), (f"|D{args[0]}|", False)]
+        elif instr == 'RTPR':
+            pila[:] = self.pilas_guardadas.pop()
+        elif instr == 'LLPR':
+            # Después de volver: los argumentos ya no están y, si es función, queda su resultado.
+            cant_args, funcion = simbolo
+            argumentos = [texto for texto, _ in pila[len(pila) - cant_args:]]
+            del pila[len(pila) - cant_args:]
+            if funcion:
+                pila[-1] = (f"{funcion}({','.join(argumentos)})", False)
+
+    @staticmethod
+    def _operando(elemento):
+        texto, compuesto = elemento
+        return f"({texto})" if compuesto else texto
 
     # Saca los comentarios de Pascal de una línea, para no anidar llaves en el comentario MEPA.
     # Un '}' suelto cierra un comentario de líneas anteriores; un '{' suelto abre uno que sigue abajo.
@@ -438,16 +495,20 @@ class Parser:
         self._emitir('PARA')
 
     # Reserva lugar para las variables locales, y lo libera después del cuerpo.
-    def _bloque(self):
+    # En un subprograma ('entry'), primero entra a su nivel: ya se conocen sus parámetros.
+    def _bloque(self, entry=None):
         p = self._peek()
         if p not in ('VAR', 'FUNCTION', 'PROCEDURE', 'BEGIN'):
             self._error("Se esperaba 'var', 'function', 'procedure' o 'begin'")
+        if entry is not None:
+            self._entrar_subprograma(entry)
         if p == 'VAR':
             self._match('VAR')
             self._sentencia_de_tipos()
         locales = self.get_table().cant_locales
         if locales:
-            self._emitir('RMEM', locales)
+            nombres = [e.name for e in self.get_table().table.values() if e.attribute == VARIABLE]
+            self._emitir('RMEM', locales, simbolo=nombres)
         # El código de los subprogramas queda en el medio: se lo saltea para ir al cuerpo.
         if self._peek() in ('FUNCTION', 'PROCEDURE'):
             cuerpo = self.codigo.nueva_etiqueta()
@@ -529,7 +590,6 @@ class Parser:
         entry = self._declare(tok, None, FUNCTION)
         self.new_table(tok.value)
         self.subprogramas.append(entry)
-        self._entrar_subprograma(entry)
         self._funcion_prima(entry)
         self._emitir('RTPR', entry.nivel, len(entry.params))
         self.subprogramas.pop()
@@ -550,13 +610,13 @@ class Parser:
             entry.type = self._tipo()
             self._match('PUNTO_COMA')
             entry.desplazamiento = -(len(entry.params) + 3)
-            self._bloque()
+            self._bloque(entry)
         elif p == 'DOS_PUNTOS':
             self._match('DOS_PUNTOS')
             entry.type = self._tipo()
             self._match('PUNTO_COMA')
             entry.desplazamiento = -3
-            self._bloque()
+            self._bloque(entry)
         else:
             self._error("Error en declaración de función: se esperaba '(' o ':'")
 
@@ -566,7 +626,6 @@ class Parser:
         entry = self._declare(tok, None, PROCEDURE)
         self.new_table(tok.value)
         self.subprogramas.append(None)
-        self._entrar_subprograma(entry)
         self._procedimiento_prima(entry)
         self._emitir('RTPR', entry.nivel, len(entry.params))
         self.subprogramas.pop()
@@ -580,10 +639,10 @@ class Parser:
             self._match('PAR_CIERRA')
             self._ubicar_parametros()
             self._match('PUNTO_COMA')
-            self._bloque()
+            self._bloque(entry)
         elif p == 'PUNTO_COMA':
             self._match('PUNTO_COMA')
-            self._bloque()
+            self._bloque(entry)
         else:
             self._error("Error en declaración de procedimiento: se esperaba '(' o ';'")
 
@@ -591,7 +650,9 @@ class Parser:
     def _entrar_subprograma(self, entry):
         entry.nivel = self.get_table().nivel
         entry.etiqueta = self.codigo.nueva_etiqueta()
-        self._emitir('ENPR', entry.nivel, etiqueta=entry.etiqueta)
+        marco = [entry.name] if entry.attribute == FUNCTION else []
+        marco += [e.name for e in self.get_table().table.values() if e.attribute == PARAMETER]
+        self._emitir('ENPR', entry.nivel, etiqueta=entry.etiqueta, simbolo=marco)
 
     # Los parámetros quedan debajo de la dirección de retorno y del D[k] guardado:
     # el i-ésimo de n tiene desplazamiento -(n+3-i).
@@ -684,7 +745,7 @@ class Parser:
             if entry.attribute != PROCEDURE:
                 self._error_semantico(tok.line_number, f"'{tok.value}' no es un procedimiento")
             self._chequear_argumentos(entry, args or [], tok.line_number)
-            self._emitir('LLPR', entry.etiqueta)
+            self._emitir('LLPR', entry.etiqueta, simbolo=(len(args or []), None))
 
     # Condición de if/while: tiene que ser booleana.
     def _condicion(self, sentencia):
@@ -869,7 +930,7 @@ class Parser:
             entry = self._lookup(tok)
             # Llamado a función: primero se reserva el lugar del resultado, después van los argumentos.
             if entry.attribute == FUNCTION:
-                self._emitir('RMEM', 1)
+                self._emitir('RMEM', 1, simbolo=[entry.name])
             args = self._llamada_funcion()
             if entry.attribute in (VARIABLE, PARAMETER):
                 if args is not None:
@@ -882,9 +943,9 @@ class Parser:
             else:
                 self._error_semantico(tok.line_number, f"'{tok.value}' no puede usarse en una expresión")
             if entry.attribute in (VARIABLE, PARAMETER):
-                self._emitir('APVL', entry.nivel, entry.desplazamiento)
+                self._emitir('APVL', entry.nivel, entry.desplazamiento, simbolo=entry.name)
             else:
-                self._emitir('LLPR', entry.etiqueta)
+                self._emitir('LLPR', entry.etiqueta, simbolo=(len(args or []), entry.name))
             return entry.type
         elif p == 'NUM':
             self._emitir('APCT', self._numero())

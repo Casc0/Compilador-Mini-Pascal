@@ -42,6 +42,54 @@ class TestPrograma(unittest.TestCase):
         self.assertEqual(correr("program p;\nbegin\n  write(2 + 3)\nend."), [5])
 
 
+def lineas(fuente):
+    return [' '.join(l.split()) for l in compilar_texto(fuente).splitlines()]
+
+
+class TestPilaSimbolica(unittest.TestCase):
+    def test_fuente_arriba_y_pila_al_lado(self):
+        self.assertEqual(lineas("program p; var a, b: integer;\nbegin\n  a := 1;\n  b := a + 2\nend."), [
+            "{ program p; var a, b: integer; }",
+            "INPP",
+            "RMEM 2 { a b }",
+            "{ a := 1; }",
+            "APCT 1 { a b 1 }",
+            "ALVL 0,0 { a b }",
+            "{ b := a + 2 }",
+            "APVL 0,0 { a b a }",
+            "APCT 2 { a b a 2 }",
+            "SUMA { a b a+2 }",
+            "ALVL 0,1 { a b }",
+            "{ end. }",
+            "LMEM 2",
+            "PARA"])
+
+    def test_operandos_compuestos_van_entre_parentesis(self):
+        # El signo se aplica al término completo: -(x+1)*3 es -((x+1)*3).
+        ls = lineas("program p; var x: integer; begin x := -(x + 1) * 3 end.")
+        self.assertIn("MULT { x (x+1)*3 }", ls)
+        self.assertIn("UMEN { x -((x+1)*3) }", ls)
+
+    def test_llamada_y_marco_de_la_funcion(self):
+        with open(os.path.join(CARPETA, "pruebas", "parametros_funcion.pas")) as f:
+            ls = lineas(f.read())
+        self.assertIn("L2 ENPR 1 { ... maximo a b ret D1ant |D1| }", ls)
+        self.assertIn("CMMA { ... maximo a b ret D1ant |D1| a>b }", ls)
+        self.assertIn("ALVL 1,-5 { ... maximo a b ret D1ant |D1| }", ls)
+        self.assertIn("RTPR 1,2 { r }", ls)              # al terminar el subprograma vuelve la pila de afuera
+        self.assertIn("RMEM 1 { r maximo }", ls)
+        self.assertIn("LLPR L2 { r maximo(3,8) }", ls)
+        self.assertIn("SUMA { r maximo(3,8)+1 }", ls)
+
+    def test_procedimiento_y_read(self):
+        ls = lineas("program p; var x: integer; procedure q(a: integer); var c: integer; begin read(c) end;"
+                    " begin q(x) end.")
+        self.assertIn("L2 ENPR 1 { ... a ret D1ant |D1| }", ls)
+        self.assertIn("RMEM 1 { ... a ret D1ant |D1| c }", ls)
+        self.assertIn("LEER { ... a ret D1ant |D1| c read }", ls)
+        self.assertIn("LLPR L2 { x }", ls)
+
+
 class TestExpresiones(unittest.TestCase):
     casos = [
         ("1 + (20 / 9 - 3) * 4", [-3]),

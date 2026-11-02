@@ -1,65 +1,86 @@
-      INPP                { program ambitos; }
-      RMEM  3             { par: boolean; }
-      DSVS  L1
-L2    ENPR  1             { function factorial(k: integer): integer; }
-      RMEM  1             { var n: integer; }
-      APVL  1,-3          { n := k; }
-      ALVL  1,0
-      APVL  1,0           { if n <= 1 then }
-      APCT  1
-      CMNI
-      DSVF  L3
-      APCT  1             { factorial := 1 }
-      ALVL  1,-4
-      DSVS  L4
-L3    NADA
-      APVL  1,0           { factorial := n * factorial(n - 1) }
-      RMEM  1
-      APVL  1,0
-      APCT  1
-      SUST
-      LLPR  L2
-      MULT
-      ALVL  1,-4
-L4    NADA
-      LMEM  1             { end; }
-      RTPR  1,1
-L5    ENPR  1             { function espar(x: integer): boolean; }
-      APVL  1,-3          { espar := (x / 2) * 2 = x }
-      APCT  2
-      DIVI
-      APCT  2
-      MULT
-      APVL  1,-3
-      CMIG
-      ALVL  1,-4
-      RTPR  1,1           { end; }
-L1    NADA
-      LEER                { read(n); }
-      ALVL  0,0
-      RMEM  1             { resultado := factorial(n); }
-      APVL  0,0
-      LLPR  L2
-      ALVL  0,1
-      RMEM  1             { par := espar(resultado); }
-      APVL  0,1
-      LLPR  L5
-      ALVL  0,2
-L6    NADA                { while not par do }
-      APVL  0,2
-      NEGA
-      DSVF  L7
-      APVL  0,1           { resultado := resultado + 1; }
-      APCT  1
-      SUMA
-      ALVL  0,1
-      RMEM  1             { par := espar(resultado) }
-      APVL  0,1
-      LLPR  L5
-      ALVL  0,2
-      DSVS  L6            { end; }
-L7    NADA
-      APVL  0,1           { write(resultado) }
-      IMPR
-      LMEM  3             { end. }
+{ program ambitos; }
+      INPP
+{ par: boolean; }
+      RMEM  3        { n resultado par }
+      DSVS  L1       { n resultado par }
+{ function factorial(k: integer): integer; }
+L2    ENPR  1        { ... factorial k ret D1ant |D1| }
+{ var n: integer; }
+      RMEM  1        { ... factorial k ret D1ant |D1| n }
+{ n := k; }
+      APVL  1,-3     { ... factorial k ret D1ant |D1| n k }
+      ALVL  1,0      { ... factorial k ret D1ant |D1| n }
+{ if n <= 1 then }
+      APVL  1,0      { ... factorial k ret D1ant |D1| n n }
+      APCT  1        { ... factorial k ret D1ant |D1| n n 1 }
+      CMNI           { ... factorial k ret D1ant |D1| n n<=1 }
+      DSVF  L3       { ... factorial k ret D1ant |D1| n }
+{ factorial := 1 }
+      APCT  1        { ... factorial k ret D1ant |D1| n 1 }
+      ALVL  1,-4     { ... factorial k ret D1ant |D1| n }
+      DSVS  L4       { ... factorial k ret D1ant |D1| n }
+L3    NADA           { ... factorial k ret D1ant |D1| n }
+{ factorial := n * factorial(n - 1) }
+      APVL  1,0      { ... factorial k ret D1ant |D1| n n }
+      RMEM  1        { ... factorial k ret D1ant |D1| n n factorial }
+      APVL  1,0      { ... factorial k ret D1ant |D1| n n factorial n }
+      APCT  1        { ... factorial k ret D1ant |D1| n n factorial n 1 }
+      SUST           { ... factorial k ret D1ant |D1| n n factorial n-1 }
+      LLPR  L2       { ... factorial k ret D1ant |D1| n n factorial(n-1) }
+      MULT           { ... factorial k ret D1ant |D1| n n*factorial(n-1) }
+      ALVL  1,-4     { ... factorial k ret D1ant |D1| n }
+L4    NADA           { ... factorial k ret D1ant |D1| n }
+{ end; }
+      LMEM  1        { ... factorial k ret D1ant |D1| }
+      RTPR  1,1      { n resultado par }
+{ function espar(x: integer): boolean; }
+L5    ENPR  1        { ... espar x ret D1ant |D1| }
+{ espar := (x / 2) * 2 = x }
+      APVL  1,-3     { ... espar x ret D1ant |D1| x }
+      APCT  2        { ... espar x ret D1ant |D1| x 2 }
+      DIVI           { ... espar x ret D1ant |D1| x/2 }
+      APCT  2        { ... espar x ret D1ant |D1| x/2 2 }
+      MULT           { ... espar x ret D1ant |D1| (x/2)*2 }
+      APVL  1,-3     { ... espar x ret D1ant |D1| (x/2)*2 x }
+      CMIG           { ... espar x ret D1ant |D1| ((x/2)*2)=x }
+      ALVL  1,-4     { ... espar x ret D1ant |D1| }
+{ end; }
+      RTPR  1,1      { n resultado par }
+L1    NADA           { n resultado par }
+{ read(n); }
+      LEER           { n resultado par read }
+      ALVL  0,0      { n resultado par }
+{ resultado := factorial(n); }
+      RMEM  1        { n resultado par factorial }
+      APVL  0,0      { n resultado par factorial n }
+      LLPR  L2       { n resultado par factorial(n) }
+      ALVL  0,1      { n resultado par }
+{ par := espar(resultado); }
+      RMEM  1        { n resultado par espar }
+      APVL  0,1      { n resultado par espar resultado }
+      LLPR  L5       { n resultado par espar(resultado) }
+      ALVL  0,2      { n resultado par }
+{ while not par do }
+L6    NADA           { n resultado par }
+      APVL  0,2      { n resultado par par }
+      NEGA           { n resultado par not par }
+      DSVF  L7       { n resultado par }
+{ resultado := resultado + 1; }
+      APVL  0,1      { n resultado par resultado }
+      APCT  1        { n resultado par resultado 1 }
+      SUMA           { n resultado par resultado+1 }
+      ALVL  0,1      { n resultado par }
+{ par := espar(resultado) }
+      RMEM  1        { n resultado par espar }
+      APVL  0,1      { n resultado par espar resultado }
+      LLPR  L5       { n resultado par espar(resultado) }
+      ALVL  0,2      { n resultado par }
+{ end; }
+      DSVS  L6       { n resultado par }
+L7    NADA           { n resultado par }
+{ write(resultado) }
+      APVL  0,1      { n resultado par resultado }
+      IMPR           { n resultado par }
+{ end. }
+      LMEM  3
       PARA

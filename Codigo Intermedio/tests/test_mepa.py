@@ -116,10 +116,12 @@ class TestMepa(unittest.TestCase):
             "PARA",
         ])
 
-    def test_traza_encabeza_con_el_comentario(self):
+    def test_traza_encabeza_con_la_linea_de_comentario_de_arriba(self):
+        # Formato del compilador: la línea del fuente arriba y la pila simbólica a la derecha.
+        cod = "{ program p; }\nINPP\n{ write(1) }\nAPCT 1     { 1 }\nIMPR\nPARA"
         traza = []
-        ejecutar("INPP   { program p; }\nAPCT 1   { write(1) }\nIMPR\nPARA", traza=traza.append)
-        self.assertEqual(traza[:3], ["{ program p; }", "INPP", "{ write(1) }"])
+        ejecutar(cod, traza=traza.append)
+        self.assertEqual(traza[:4], ["{ program p; }", "INPP", "{ write(1) }", "APCT 1          1"])
 
     def test_traza_marca_el_display_del_subprograma_activo(self):
         cod = "INPP\nDSVS L1\nL2 ENPR 1\nAPVL 1,-3\nIMPR\nRTPR 1,1\nL1 NADA\nAPCT 7\nLLPR L2\nPARA"
