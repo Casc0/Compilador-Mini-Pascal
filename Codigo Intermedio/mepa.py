@@ -1,5 +1,6 @@
 # Intérprete de la Máquina de Ejecución para Pascal (MEPA).
-# Uso: python mepa.py <archivo.mepa> [valores de entrada para LEER...]
+# Uso: python mepa.py <archivo.mepa> [-t] [valores de entrada para LEER...]
+#      -t muestra cada instrucción ejecutada con el estado de la pila después de ejecutarla.
 # Implementa las instrucciones descriptas en el apunte MEPA2015. Lo usamos para verificar
 # que el código que genera el compilador hace lo que tiene que hacer.
 
@@ -38,11 +39,12 @@ class MepaError(Exception):
     pass
 
 
-# Devuelve la lista de instrucciones (mnemónico, args) y el diccionario etiqueta -> índice.
-# Acepta comentarios { ... } y una etiqueta L<n> delante de cualquier instrucción.
+# Devuelve la lista de instrucciones (mnemónico, args, texto, comentario) y el diccionario
+# etiqueta -> índice. Acepta comentarios { ... } y una etiqueta L<n> delante de cualquier instrucción.
 def _cargar(codigo):
     programa, etiquetas = [], {}
     for nro, linea in enumerate(codigo.splitlines(), 1):
+        comentario = re.search(r'\{[^}]*\}', linea)
         linea = re.sub(r'\{[^}]*\}', '', linea).strip()
         if not linea:
             continue
@@ -63,17 +65,41 @@ def _cargar(codigo):
                 args = [int(a) for a in args]
             except ValueError:
                 raise MepaError(f"línea {nro}: argumento no numérico en '{linea}'")
-        programa.append((instr, args))
+        programa.append((instr, args, ' '.join(linea.split()), comentario and comentario.group(0)))
     return programa, etiquetas
 
 
+# Contenido de la pila del fondo al tope ('?' si la posición no tiene valor), con una
+# marca |Dk| donde apunta D[k] para cada subprograma activo.
+def _mostrar_pila(M, D, s, activos):
+    marcas = {}
+    for k in sorted(set(activos)):
+        marcas.setdefault(D[k], []).append(f"|D{k}|")
+    partes = []
+    for pos in range(s + 2):
+        partes += marcas.get(pos, [])
+        if pos <= s:
+            partes.append(str(M[pos]) if pos in M else '?')
+    return ' '.join(partes)
+
+
 # Ejecuta el código y devuelve la lista de valores impresos.
-def ejecutar(codigo, entrada=()):
+# Si se pasa 'traza', se la llama con una línea de texto por cada instrucción ejecutada.
+def ejecutar(codigo, entrada=(), traza=None):
     programa, etiquetas = _cargar(codigo)
     entrada = list(entrada)
     salida = []
     M, D = {}, {}
     i, s = 0, -1
+    activos = []        # niveles de los subprogramas en ejecución, para la traza
+
+    def registrar(texto, impreso=None):
+        if traza is None:
+            return
+        linea = f"{texto:<16}{_mostrar_pila(M, D, s, activos)}".rstrip()
+        if impreso is not None:
+            linea += f"   => imprime {impreso}"
+        traza(linea)
 
     def destino(etq):
         if etq not in etiquetas:
@@ -88,13 +114,17 @@ def ejecutar(codigo, entrada=()):
     for _ in range(MAX_PASOS):
         if not 0 <= i < len(programa):
             raise MepaError("el programa terminó sin PARA")
-        instr, args = programa[i]
+        instr, args, texto, comentario = programa[i]
+        if traza is not None and comentario:
+            traza(comentario)
         i += 1
+        impreso = None
         match instr:
             case 'INPP':
                 s = -1
                 D[0] = 0
             case 'PARA':
+                registrar(texto)
                 return salida
             case 'RMEM':
                 s += args[0]
@@ -136,12 +166,14 @@ def ejecutar(codigo, entrada=()):
                 s += 1
                 M[s] = entrada.pop(0)
             case 'IMPR' | 'IMLN':
-                salida.append(leer(s))
+                impreso = leer(s)
+                salida.append(impreso)
                 s -= 1
             case 'ENPR':
                 s += 1
                 M[s] = D.get(args[0], 0)
                 D[args[0]] = s + 1
+                activos.append(args[0])
             case 'LLPR':
                 s += 1
                 M[s] = i
@@ -150,18 +182,26 @@ def ejecutar(codigo, entrada=()):
                 D[args[0]] = leer(s)
                 i = leer(s - 1)
                 s -= args[1] + 2
+                activos.pop()   # las llamadas se anidan: se cierra la última que entró
+        registrar(texto, impreso)
     raise MepaError(f"se superaron los {MAX_PASOS} pasos (¿loop infinito?)")
 
 
 if __name__ == "__main__":
-    if len(sys.argv) < 2:
-        print("Utilizar el comando: python mepa.py <archivo.mepa> [valores de entrada...]")
+    args = sys.argv[1:]
+    con_traza = '-t' in args
+    if con_traza:
+        args.remove('-t')
+    if not args:
+        print("Utilizar el comando: python mepa.py <archivo.mepa> [-t] [valores de entrada...]")
         sys.exit(1)
     try:
-        with open(sys.argv[1]) as f:
+        with open(args[0]) as f:
             codigo = f.read()
-        for valor in ejecutar(codigo, [int(v) for v in sys.argv[2:]]):
-            print(valor)
+        salida = ejecutar(codigo, [int(v) for v in args[1:]], traza=print if con_traza else None)
+        if not con_traza:
+            for valor in salida:
+                print(valor)
     except MepaError as e:
         print(f"Error de ejecución MEPA: {e}")
         sys.exit(1)

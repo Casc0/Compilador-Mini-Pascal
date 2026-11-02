@@ -102,6 +102,34 @@ class TestMepa(unittest.TestCase):
         with self.assertRaises(MepaError):
             ejecutar("INPP\nFRUTA\nPARA")
 
+    def test_traza_muestra_la_pila_despues_de_cada_instruccion(self):
+        traza = []
+        ejecutar("INPP\nRMEM 1\nAPCT 5\nALVL 0,0\nAPVL 0,0\nIMPR\nLMEM 1\nPARA", traza=traza.append)
+        self.assertEqual(traza, [
+            "INPP",
+            "RMEM 1          ?",
+            "APCT 5          ? 5",
+            "ALVL 0,0        5",
+            "APVL 0,0        5 5",
+            "IMPR            5   => imprime 5",
+            "LMEM 1",
+            "PARA",
+        ])
+
+    def test_traza_encabeza_con_el_comentario(self):
+        traza = []
+        ejecutar("INPP   { program p; }\nAPCT 1   { write(1) }\nIMPR\nPARA", traza=traza.append)
+        self.assertEqual(traza[:3], ["{ program p; }", "INPP", "{ write(1) }"])
+
+    def test_traza_marca_el_display_del_subprograma_activo(self):
+        cod = "INPP\nDSVS L1\nL2 ENPR 1\nAPVL 1,-3\nIMPR\nRTPR 1,1\nL1 NADA\nAPCT 7\nLLPR L2\nPARA"
+        traza = []
+        ejecutar(cod, traza=traza.append)
+        enpr = next(l for l in traza if l.startswith("L2 ENPR 1"))
+        self.assertTrue(enpr.endswith("7 9 0 |D1|"), enpr)   # parámetro, retorno (instr. 9), D[1] viejo
+        rtpr = next(l for l in traza if l.startswith("RTPR"))
+        self.assertNotIn("|D1|", rtpr)                       # al volver, el nivel 1 ya no está activo
+
     def test_etiqueta_inexistente(self):
         with self.assertRaises(MepaError):
             ejecutar("INPP\nDSVS L9\nPARA")
