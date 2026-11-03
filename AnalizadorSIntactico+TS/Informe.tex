@@ -1,0 +1,296 @@
+\documentclass[12pt]{article}
+\usepackage{graphicx}
+\usepackage[top= 3cm, bottom=2cm, left=2cm, right=2cm]{geometry}
+\usepackage{hyperref}
+\usepackage{enumitem}
+\usepackage{xcolor}
+\usepackage{comment}
+\usepackage{minted}
+\usepackage{amsmath}
+\usepackage{pdfpages}
+\usepackage{listings}
+\usepackage{syntax}
+\usepackage{todonotes}
+\usepackage{longtable}
+\usepackage{listings}
+\hypersetup{
+    colorlinks=true,
+    linkcolor=blue,
+    filecolor=magenta,      
+    urlcolor=cyan,
+}
+% Sacar identación
+\setlength{\parindent}{0cm}
+
+% Para tabla de contenidos
+\hypersetup{
+    colorlinks=true,
+    urlcolor=blue,
+    linkcolor=blue,
+    citecolor=blue,
+    hidelinks
+}
+
+\begin{document}
+
+\titlepage
+\begin{center}
+\vspace{-1cm}
+{\Large{\bf \sc Universidad Nacional del Comahue}} \\
+{\Large { \sc Facultad de Informática}} \\
+\vspace{-2.5cm}
+\mbox{\hspace{-1cm}\includegraphics[width=2.5cm,height=2.5cm]{unc.png}\hspace{14cm} \includegraphics[width=2.5cm,height=2.5cm]{fai.png}}
+\vspace{1cm}
+
+\ \\
+\ \\
+
+{\Large {\bf \sc Trabajo de Laboratorio Nº5}} \\
+\vspace{1cm}
+{\LARGE {\bf \sc Diseño de Compiladores e Intérpretes}}\\
+\vspace{0.3em}
+
+\vspace{1.5cm}	
+
+{\large Grupo 5}
+\\ \vspace{1.5em}
+
+{\large Franco Fabris}
+\\ \vspace{0.3em}
+{\large franco.fabris@est.fi.uncoma.edu.ar}
+\\ \vspace{0.3em}
+{\large FAI-3206}
+\\ \vspace{0.5cm}
+
+{\large Valentina Villarroel}
+\\ \vspace{0.3em}
+{\large valentina.villarroel@est.fi.uncoma.edu.ar}
+\\ \vspace{0.3em}
+{\large FAI-3944}
+\\ \vspace{0.5cm}
+
+\vfill
+{\Large {\sc Neuqu\'en}\hspace{6cm}{\sc Argentina}}\\
+\ \\
+	
+{\Large 2026} \\
+	
+\end{center}
+
+\pagebreak
+
+\tableofcontents
+
+\pagebreak
+
+% \includepdf[pages=-]{TP1.pdf}
+
+\setlength{\grammarparsep}{12pt plus 1pt minus 1pt} % increase separation between rules
+\setlength{\grammarindent}{4em} % increase separation between LHS/RHS 
+
+% --- SECCIÓN 1: DESCRIPCIÓN DEL PROBLEMA ---
+\section{Descripción del problema}
+El objetivo de este trabajo de laboratorio es diseñar e implementar un Analizador Sintáctico para un subconjunto del lenguaje Pascal. Partiendo de la gramática definida en los trabajos anteriores, el desafío consiste en transformarla en una gramática de tipo LL(1) que sea apta para un análisis descendente predictivo. \\
+
+La tarea principal del analizador sintáctico es recibir la secuencia de componentes léxicos (tokens) generados por el scanner y verificar que respeten las reglas estructurales del lenguaje. Para ello, debemos resolver conflictos gramaticales comunes como la recursión a izquierda y la ambigüedad en los prefijos, asegurando que el parser pueda tomar decisiones de derivación utilizando únicamente un símbolo de preanálisis, el cual nombraremos como lookahead de acá en adelante.
+
+% --- SECCIÓN 2: ESTRATEGIAS UTILIZADAS ---
+\section{Estrategias utilizadas}
+Para la resolución de este laboratorio se aplicaron las siguientes estrategias:
+
+\begin{enumerate}
+    \item \textbf{Transformación de la Gramática:} Se analizaron las reglas originales para detectar recursión a izquierda. 
+    \item \textbf{Factorización por Izquierda:} Se identificaron reglas donde múltiples alternativas comenzaban con el mismo token. 
+    \item \textbf{Resolución de la Ambigüedad:} Se forzó la asociación del bloque \texttt{else} al \texttt{if} más interno para cumplir con la semántica de Pascal.
+    \item \textbf{Implementación Analizador Sintáctico:} Se diseñó de forma tal que cada no terminal de la gramática se corresponde con un módulo en el código. Se sigue con el estándar introducido por el Analizador Léxico. 
+\end{enumerate}
+
+% --- SECCIÓN 3: LIMITACIONES ---
+\section{Limitaciones}
+El diseño actual del compilador presenta las siguientes restricciones:
+\begin{itemize}
+    \item \textbf{Recuperación de errores simple:} El parser está diseñado para detener la ejecución y reportar el primer error encontrado. No se han implementado estrategias avanzadas de recuperación que permitan continuar el análisis tras detectar una falla.
+    \item \textbf{Gramática Estricta:} No se admiten construcciones fuera del subconjunto de Pascal definido, como punteros, registros o tipos de datos reales.
+\end{itemize}
+\newpage
+\section{Modificación de la Gramática}
+
+\subsection{Transformación a BNF}
+
+\input{TP4/BNF}
+
+\subsection{Eliminando la Recursión a Izquierda}
+
+\input{TP4/sinRecursionIzq}
+
+\subsection{Eliminando la Factorización}
+
+
+\input{TP4/sinFactorizacion}
+
+\section{Gramática de tipo LL(1)}
+
+Para que una gramática sea de tipo LL(1) la misma debe cumplir tres condiciones:
+
+\begin{itemize}
+    \item No ser ambigua.
+    \item No presentar recursión a izquierda.
+    \item Debe estar factorizada a izquierda.
+\end{itemize}
+
+Nuestra gramática esta cerca de cumplir esas características si no fuera por un caso especifico. Cuando se presenta una estructura como la siguiente:
+
+\begin{lstlisting}[mathescape=true, frame=single, language=pascal, basicstyle=\ttfamily\small, breaklines=true]
+    ...
+    <IF> (expresion) <THEN> (sentencia)
+        <IF> (expresion) <THEN> (sentencia)
+    <ELSE> (sentencia) 
+    ...
+    // En pascal tanto  \t como \n se ignoran. Por lo tanto la expresion anterior es igual a:  
+    <IF> (expresion) <THEN> (sentencia) <IF> (expresion) <THEN> (sentencia) <ELSE> (sentencia)
+\end{lstlisting}
+
+En este caso el $<ELSE>$ puede generarse tanto como de la derivación del primer $<IF>$ como del segundo. Esto lo resolvemos forzando a cualquier $<ELSE>$ que se encuentre a corresponderse al $<IF>$ más cercano a izquierda, cumpliendo con la interpretación estándar del Lenguaje Pascal. 
+
+\section{Gramática final}
+
+\input{TP4/GramaticaFinal}
+
+
+
+\section{Analizador Sintáctico Descendente Recursivo Predictivo}
+
+El Analizador Sintáctico Descendente Recursivo Predictivo es un método de tipo top-down. Su implementación se basa en asociar un procedimiento a cada símbolo no terminal de la gramática. El cuerpo de cada uno de estos procedimientos imita exactamente la parte derecha de las reglas de producción correspondientes a ese no terminal. Para determinar unívocamente qué producción aplicar sin necesidad de backtracking, el analizador consulta el símbolo de lookahead, que corresponde al token actual del analizador léxico. De esta forma, la secuencia de llamadas recursivas procesa la entrada y define implícitamente el árbol de derivación desde la raíz hasta las hojas.
+
+\input{TP4/Codigo}
+
+% --- SECCIÓN 9: PROBLEMAS ENCONTRADOS ---
+\section{Problemas encontrados}
+Durante el desarrollo surgieron varios desafíos técnicos:
+\begin{itemize}
+    \item \textbf{Conflicto de Identificadores:} Fue complejo manejar el hecho de que tanto las variables como las funciones y procedimientos comienzan con un token \texttt{ID}. Esto nos obligó a refactorizar las reglas de \texttt{<sentencia>} y \texttt{<factor>} para postergar la decisión hasta encontrar un operador de asignación (\texttt{:=}) o un paréntesis de apertura.
+    
+    \item \textbf{Ambigüedad del Else:} Aunque la gramática fue factorizada, el conflicto lógico del \texttt{else} persistía. La solución no fue puramente gramatical, sino que requirió una decisión de diseño en la lógica del procedimiento recursivo.
+\end{itemize}
+
+% --- SECCIÓN 10: IMPLEMENTACION ---
+
+\section{Implementación}
+
+\subsection{Descripción del producto y herramientas utilizadas}
+
+El aplicativo es un Analizador Sintáctico desarrollado en el lenguaje de programación \textit{Python 3}. Se optó por este lenguaje dada su alta legibilidad y la facilidad para manipular cadenas de texto y archivos. El programa no requiere dependencias externas para su análisis central, apoyándose únicamente en las bibliotecas estándar de \textit{Python}. Para la generación del archivo ejecutable multiplataforma, se utilizó la herramienta \textit{PyInstaller}, empaquetando el entorno en un único archivo independiente.
+
+Dentro del ZIP enviado se puede encontrar:
+
+\begin{itemize}
+    \item Los ejecutables analizadorLinux y analizadorWindows (carpeta que contiene analizador.exe) 
+    \item El codigo fuente \textit{analizador.py}
+    \item La carpeta \textit{/pruebas} que contiene todas pruebas que preparamos. Hay programas sintácticamente válidos y otros que presentan errores intencionales.
+\end{itemize}
+
+\subsection{Manual de instalacion}
+
+El analizador esta contenido dentro de un ejecutable, por lo que no es necesario instalar dependencia alguna, solo ejecutar el analizador correspondiente a su Sistema Operativo. Pero si quisiera armar su propio ejecutable siga los siguientes pasos:
+
+\begin{enumerate}
+    \item Crear el entorno virtual:\\
+    \verb|python3 -m venv venv|
+
+    \item Activarlo:\\
+    \verb|source venv/bin/activate|
+
+    \item Instalar PyInstaller:\\
+    \verb|pip install pyinstaller|
+
+    \item Generar el ejecutable:\\
+    \verb|pyinstaller --onefile --name analizador analizador.py|
+
+    \item Desactivar el entorno virtual:\\
+    \verb|deactivate|
+
+    \item Copiar el binario al directorio del proyecto:\\
+    \verb|cp dist/analizador .|
+\end{enumerate}
+
+\subsection{Manual de uso}
+
+El analizador se opera mediante una interfaz de línea de comandos (CLI). Para ejecutarlo, el usuario debe situarse en el directorio donde se encuentra el programa compilado y el archivo de código fuente a analizar. 
+
+\begin{enumerate}
+    \item Abrir una terminal o consola de comandos.
+    \item Ejecutar la siguiente instrucción, reemplazando \textit{analizador} por el ejecutable correspondiente al Sistema Operativo (\texttt{analizadorLinux} en Linux y \texttt{analizador.exe} en Windows) y \textit{archivo.pas} por el nombre del archivo de prueba:\\
+    \verb|$ ./analizador archivo.pas|
+    \item El aplicativo analizará el archivo y, en caso de detectar errores léxicos, los mostrará por consola indicando el número de línea (este comportamiento es heredado del Analizador Léxico).
+    \item Al finalizar el análisis, se muestra uno de los siguientes resultados:
+    \begin{itemize}
+        \item Si el programa es sintácticamente correcto, se imprime el mensaje \texttt{Análisis sintáctico exitoso} y el programa termina con código de salida 0.
+        \item Si se detecta un error sintáctico, se imprime un mensaje con el formato \texttt{Error sintáctico en línea N: <descripción>}, indicando el token esperado y el encontrado, y el programa termina con código de salida 1.
+    \end{itemize}
+\end{enumerate}
+
+\subsection{Tabla de Errores y Tratamiento Sugerido}
+
+A diferencia del Analizador Léxico, que aplica recuperación local descartando caracteres inválidos y continuando con el análisis, el Analizador Sintáctico adopta la estrategia \textbf{stop-on-first-error}: ante el primer error detectado se reporta la línea exacta y se detiene la ejecución. Esta decisión de diseño se debe a que la recuperación de errores sintácticos requiere técnicas avanzadas (modo pánico, sincronización por símbolos guía) que exceden el alcance del trabajo práctico.
+
+Los errores detectados por el parser se clasifican según la regla gramatical que los origina. Pueden verse en la Tabla \ref{tab:errores-sintacticos}.
+
+\begin{longtable}{|p{5.5cm}|p{5cm}|p{4.5cm}|}
+\hline
+\textbf{Mensaje} & \textbf{Descripción} & \textbf{Fase de Detección} \\
+\hline
+\endhead
+\texttt{Se esperaba 'X', se encontró 'Y'} & El token actual no coincide con el esperado por la regla gramatical en curso. & Función \texttt{match()}, invocada desde cualquier no-terminal. \\
+\hline
+\texttt{Sentencia inválida} & El token actual no inicia ninguna sentencia válida (no es ID, IF, WHILE, BEGIN, READ ni WRITE). & No-terminal \texttt{sentencia}. \\
+\hline
+\texttt{Tokens inesperados después del final del programa} & Existen tokens adicionales después del punto final que cierra el programa. & Verificación final en \texttt{parse()}. \\
+\hline
+\caption{Tabla de Errores Sintácticos.}
+\label{tab:errores-sintacticos}
+\end{longtable}
+
+En todos los casos el tratamiento es el mismo: se reporta el error indicando la línea exacta y se finaliza la ejecución con código de salida distinto de cero, permitiendo al usuario identificar con precisión la ubicación del problema.
+
+\subsection{Ejemplos de ejecución}
+
+Para comprobar el correcto funcionamiento del analizador sintáctico, se diseñó un conjunto de pruebas. Estas abarcan tanto casos de éxito donde el código fuente respeta la gramática, como casos donde se introducen errores sintácticos intencionales.
+
+\subsubsection*{Ejecución exitosa}
+Al ejecutar el analizador con el archivo \texttt{prueba\_anidados.pas}, el cual contiene sentencias \texttt{if}/\texttt{else} anidadas y bucles \texttt{while} con cuerpos compuestos, el resultado es el siguiente:
+
+\begin{lstlisting}[frame=single, basicstyle=\ttfamily\small]
+$ ./analizador pruebas/prueba_anidados.pas
+Analisis sintactico exitoso
+\end{lstlisting}
+El programa finaliza con un código de salida 0, confirmando que la secuencia de tokens pertenece al lenguaje generado por la gramática. Otro ejemplo con el archivo \texttt{prueba\_funciones.pas}:
+
+\begin{lstlisting}[frame=single, basicstyle=\ttfamily\small]
+$ ./analizador pruebas/prueba_funciones.pas
+Analisis sintactico exitoso
+\end{lstlisting}
+
+\subsubsection*{Ejecución con errores sintácticos}
+Por otro lado, al evaluar un programa mal formado, el analizador lo detecta, reporta el error y finaliza la ejecución con código de salida 1. 
+
+Ejemplo utilizando el archivo \texttt{error\_falta\_punto\_coma.pas}, en el cual se omitió intencionalmente un \texttt{;} entre las declaraciones:
+
+\begin{lstlisting}[frame=single, basicstyle=\ttfamily\small]
+$ ./analizador pruebas/error_falta_punto_coma.pas
+Error sintactico en linea 12: Se esperaba ';', se encontro 'var'
+\end{lstlisting}
+
+Ejemplo utilizando el archivo \texttt{error\_falta\_then.pas}, donde la estructura de control \texttt{if} está incompleta:
+
+\begin{lstlisting}[frame=single, basicstyle=\ttfamily\small]
+$ ./analizador pruebas/error_falta_then.pas
+Error sintactico en linea 24: Se esperaba 'then', se encontro 'begin'
+\end{lstlisting}
+
+
+% --- SECCIÓN 10: CONCLUSIÓN ---
+
+\section{Conclusión}
+En conclusión, la realización de este trabajo nos permitió comprender que la construcción de un compilador no es solo una tarea de programación, sino de diseño formal. La transformación de la gramática a una de tipo $LL(1)$ fue el paso más importante para asegurar la correctitud del analizador. De esta manera, logramos aplicar de forma práctica e interiorizar todos los conceptos teóricos abordados a lo largo de la materia.
+
+\end{document}
