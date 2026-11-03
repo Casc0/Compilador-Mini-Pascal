@@ -1,0 +1,36 @@
+{ program condicional; }
+      INPP
+{ positivo: boolean; }
+      RMEM  2        { n positivo }
+{ read(n); }
+      LEER           { n positivo read }
+      ALVL  0,0      { n positivo }
+{ positivo := n > 0; }
+      APVL  0,0      { n positivo n }
+      APCT  0        { n positivo n 0 }
+      CMMA           { n positivo n>0 }
+      ALVL  0,1      { n positivo }
+{ if positivo then }
+      APVL  0,1      { n positivo positivo }
+      DSVF  L1       { n positivo }
+{ write(1) }
+      APCT  1        { n positivo 1 }
+      IMPR           { n positivo }
+      DSVS  L2       { n positivo }
+L1    NADA           { n positivo }
+{ write(0); }
+      APCT  0        { n positivo 0 }
+      IMPR           { n positivo }
+L2    NADA           { n positivo }
+{ if n = 0 then }
+      APVL  0,0      { n positivo n }
+      APCT  0        { n positivo n 0 }
+      CMIG           { n positivo n=0 }
+      DSVF  L3       { n positivo }
+{ write(n) }
+      APVL  0,0      { n positivo n }
+      IMPR           { n positivo }
+L3    NADA           { n positivo }
+{ end. }
+      LMEM  2
+      PARA

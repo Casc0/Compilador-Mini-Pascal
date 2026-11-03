@@ -1,0 +1,860 @@
+\documentclass[12pt]{article}
+\usepackage[T1]{fontenc}
+\usepackage[spanish,es-noshorthands,es-tabla,es-nolists]{babel}
+\usepackage{graphicx}
+\usepackage[top= 3cm, bottom=2cm, left=2cm, right=2cm]{geometry}
+\usepackage{hyperref}
+\usepackage{enumitem}
+\usepackage{xcolor}
+\usepackage{comment}
+\usepackage{minted}
+\usepackage{amsmath}
+\usepackage{pdfpages}
+\usepackage{listings}
+\usepackage{syntax}
+\usepackage{todonotes}
+\usepackage{longtable}
+\hypersetup{
+    colorlinks=true,
+    linkcolor=blue,
+    filecolor=magenta,
+    urlcolor=cyan,
+}
+% Sacar identación
+\setlength{\parindent}{0cm}
+
+% Para tabla de contenidos
+\hypersetup{
+    colorlinks=true,
+    urlcolor=blue,
+    linkcolor=blue,
+    citecolor=blue,
+    hidelinks
+}
+
+% Acentos dentro de los lstlisting
+\lstset{literate=
+  {á}{{\'a}}1 {é}{{\'e}}1 {í}{{\'i}}1 {ó}{{\'o}}1 {ú}{{\'u}}1
+  {Á}{{\'A}}1 {É}{{\'E}}1 {Í}{{\'I}}1 {Ó}{{\'O}}1 {Ú}{{\'U}}1
+  {ñ}{{\~n}}1 {Ñ}{{\~N}}1
+}
+
+% Para que no queden notas TODO en la entrega, descomentar la siguiente línea:
+% \renewcommand{\todo}[2][]{}
+
+\begin{document}
+
+\titlepage
+\begin{center}
+\vspace{-1cm}
+{\Large{\bf \sc Universidad Nacional del Comahue}} \\
+{\Large { \sc Facultad de Informática}} \\
+\vspace{-2.5cm}
+\mbox{\hspace{-1cm}\includegraphics[width=2.5cm,height=2.5cm]{unc.png}\hspace{14cm} \includegraphics[width=2.5cm,height=2.5cm]{fai.png}}
+\vspace{1cm}
+
+\ \\
+\ \\
+
+{\Large {\bf \sc Trabajo de Laboratorio Nº5}} \\
+\vspace{1cm}
+{\LARGE {\bf \sc Diseño de Compiladores e Intérpretes}}\\
+\vspace{0.3em}
+
+\vspace{1.5cm}
+
+{\large Grupo 5}
+\\ \vspace{1.5em}
+
+{\large Franco Fabris}
+\\ \vspace{0.3em}
+{\large franco.fabris@est.fi.uncoma.edu.ar}
+\\ \vspace{0.3em}
+{\large FAI-3206}
+\\ \vspace{0.5cm}
+
+{\large Valentina Villarroel}
+\\ \vspace{0.3em}
+{\large valentina.villarroel@est.fi.uncoma.edu.ar}
+\\ \vspace{0.3em}
+{\large FAI-3944}
+\\ \vspace{0.5cm}
+
+\vfill
+{\Large {\sc Neuqu\'en}\hspace{6cm}{\sc Argentina}}\\
+\ \\
+
+{\Large 2026} \\
+
+\end{center}
+
+\pagebreak
+
+% (a) Índice
+\tableofcontents
+
+\pagebreak
+
+% (h) El enunciado sugiere incorporar este informe como un capítulo del Trabajo Final.
+
+% --- (b) DESCRIPCIÓN DEL PROBLEMA ---
+\section{Descripción del problema}
+
+El objetivo de este trabajo de laboratorio es extender el Analizador Semántico desarrollado en la etapa anterior para implementar un \textbf{Generador de Código Intermedio}, tomando como lenguaje destino el de la \textit{Máquina de Ejecución para Pascal} (MEPA). \\
+
+El código intermedio es una representación del programa independiente de la máquina destino, pero conceptualmente cercana a ella. Traducir directamente a un lenguaje de máquina obligaría a tener en cuenta registros, modos de direccionamiento y otras particularidades que ocultan la correspondencia entre cada construcción de Pascal y su traducción. Por eso, en lugar de un procesador real, se utiliza una máquina hipotética diseñada a medida del lenguaje. \\
+
+A partir de un programa fuente que no presenta errores léxicos, sintácticos ni semánticos, el compilador debe producir un programa equivalente en lenguaje MEPA, que se almacena en un archivo con extensión \texttt{.mepa}. Para ello es necesario establecer una traducción precisa para cada construcción del lenguaje: la evaluación de expresiones, las asignaciones, las sentencias condicionales y repetitivas, la entrada y salida, y la declaración y llamada de procedimientos y funciones, incluyendo sus variables locales y el pasaje de parámetros. Si el programa fuente contiene errores, estos se informan como en las etapas anteriores y no se genera código.
+
+\subsection{La máquina MEPA}
+
+La MEPA es una \textbf{máquina de pila}. Esta decisión se toma porque el lenguaje admite subprogramas recursivos y la recursión está ligada al uso de una pila. Su memoria se compone de tres regiones:
+
+\begin{itemize}
+    \item \textbf{Región de programa} $P$: contiene las instrucciones MEPA que se ejecutan.
+    \item \textbf{Pila de datos} $M$: contiene los valores que manipulan las instrucciones, es decir, las variables, los parámetros y los resultados intermedios de las expresiones. Cada posición almacena un valor entero; los valores booleanos se representan con 1 (\textit{true}) y 0 (\textit{false}).
+    \item \textbf{Display} $D$: un vector de direcciones base que apuntan a la región $M$. $D[k]$ contiene la dirección donde comienzan las variables locales del subprograma activo de nivel léxico $k$.
+\end{itemize}
+
+Además, cuenta con dos registros especiales:
+
+\begin{itemize}
+    \item $i$: contador de programa, indica la próxima instrucción a ejecutar, $P[i]$.
+    \item $s$: tope de pila, indica el último elemento ocupado de la pila, $M[s]$.
+\end{itemize}
+
+La máquina ejecuta las instrucciones indicadas por $i$ hasta encontrar la instrucción de parada (\texttt{PARA}) o hasta que ocurra un error. Cada instrucción incrementa $i$ en uno, excepto las de desvío, que lo modifican para continuar la ejecución en otra parte del programa. Los destinos de los desvíos se indican con etiquetas simbólicas (\texttt{L1}, \texttt{L2}, \ldots). \\
+
+\textbf{Direccionamiento de variables.} Como un subprograma puede ser recursivo, sus variables no tienen una dirección fija: puede haber varias activaciones simultáneas, cada una con su propia copia. Por eso cada variable se identifica con un par \textbf{(nivel léxico, desplazamiento)}, ambos calculados por el compilador:
+
+\begin{itemize}
+    \item El \textbf{nivel léxico} es 0 para el programa principal; si un subprograma tiene nivel $m$, los subprogramas declarados dentro de él tienen nivel $m+1$.
+    \item El \textbf{desplazamiento} es la posición de la variable relativa a la dirección base de su nivel. La primera variable local tiene desplazamiento 0; los parámetros tienen desplazamientos negativos, porque son apilados por el que lo llama antes de entrar al subprograma.
+\end{itemize}
+
+Así, la instrucción \texttt{APVL m,n} apila el valor almacenado en $M[D[m]+n]$. Como el contenido de $D$ se actualiza al entrar y al salir de cada subprograma, el mismo par $(m, n)$ accede siempre a la variable de la activación correcta.
+
+% --- (c) ESTRATEGIAS UTILIZADAS ---
+\section{Estrategias utilizadas}
+
+Para la resolución de este laboratorio se aplicaron las siguientes estrategias:
+
+\begin{enumerate}
+    \item \textbf{Traducción dirigida por la sintaxis en una sola pasada:} \todo[inline]{Cada método del parser emite sus instrucciones mientras reconoce y chequea tipos; no se construye un árbol.}
+    \item \textbf{Ampliación de la tabla de símbolos:} \todo[inline]{Nivel léxico y desplazamiento de variables y parámetros; etiqueta de cada subprograma.}
+    \item \textbf{Cálculo de desplazamientos:} \todo[inline]{Locales 0, 1, 2...; parámetros -(n+3-i); resultado de una función -(n+3). Explicar de dónde sale el 3 (dirección de retorno y D[k] guardado).}
+    \item \textbf{Etiquetas y saltos:} \todo[inline]{Etiquetas L1, L2... para if, while y subprogramas; DSVS para saltear el código de los subprogramas.}
+    \item \textbf{Expresiones en notación postfija:} \todo[inline]{Se emite el operador después de sus operandos.}
+    \item \textbf{Legibilidad del código generado:} \todo[inline]{Formato en columnas; la línea del fuente como comentario encima de sus instrucciones; la pila simbólica a la derecha de cada instrucción, calculada al compilar (cada sentencia deja la pila como la encontró, así que su forma en cada punto del código se conoce sin ejecutar el programa).}
+    \item \textbf{Verificación con un intérprete MEPA propio:} \todo[inline]{Al no contar con un intérprete de la cátedra, se desarrolló mepa.py, que ejecuta el .mepa mostrando el estado de la pila después de cada instrucción (traza). Se usó para verificar las traducciones a mano y en la batería de tests automáticos.}
+\end{enumerate}
+
+\subsection{Esquemas de traducción}
+
+\todo[inline]{Opcional: tabla con el esquema de cada construcción (programa, procedimiento, función, llamada, asignación, if, while, read, write).}
+
+% --- (d) EJEMPLOS DE TRADUCCIÓN ---
+\section{Ejemplos de traducción a código MEPA}
+
+Los archivos de ejemplo se encuentran en la carpeta \texttt{pruebas/}. Cada uno se compiló con el aplicativo y el código mostrado es exactamente el archivo \texttt{.mepa} generado. En él, cada línea del programa fuente aparece como comentario encima de las instrucciones que genera, y a la derecha de cada instrucción se indica, también como comentario, el contenido de la pila después de ejecutarla. Como el compilador no ejecuta el programa, la pila se muestra en forma simbólica: cada posición se nombra con la variable, el parámetro o la expresión cuyo valor contiene. Dentro de un subprograma, \texttt{...} representa la parte de la pila que pertenece a quien lo llamó, \texttt{ret} la dirección de retorno, \texttt{D$k$ant} el valor anterior de $D[k]$ y \texttt{|D$k$|} la posición a la que apunta $D[k]$.
+
+\subsection{Variables locales de un subprograma}
+
+\todo[inline]{Explicar: nivel léxico del procedimiento (1), desplazamientos 0 y 1 de las locales a y b, RMEM/LMEM para reservarlas y liberarlas, y cómo se accede a la global x con APVL 0,0 desde adentro del procedimiento.}
+
+\subsubsection*{Programa fuente}
+\begin{lstlisting}[frame=single, language=pascal, basicstyle=\ttfamily\small]
+program locales;
+var x: integer;
+
+{ El procedimiento tiene sus propias variables locales a y b }
+procedure intercambiar;
+var a, b: integer;
+begin
+  a := x;
+  b := a * 2;
+  x := b - a + 1;
+  write(a);
+  write(b)
+end;
+
+begin
+  x := 4;
+  intercambiar;
+  write(x)
+end.
+\end{lstlisting}
+
+\subsubsection*{Código MEPA generado}
+\begin{lstlisting}[frame=single, basicstyle=\ttfamily\small, breaklines=true]
+{ program locales; }
+      INPP
+{ var x: integer; }
+      RMEM  1        { x }
+      DSVS  L1       { x }
+{ procedure intercambiar; }
+L2    ENPR  1        { ... ret D1ant |D1| }
+{ var a, b: integer; }
+      RMEM  2        { ... ret D1ant |D1| a b }
+{ a := x; }
+      APVL  0,0      { ... ret D1ant |D1| a b x }
+      ALVL  1,0      { ... ret D1ant |D1| a b }
+{ b := a * 2; }
+      APVL  1,0      { ... ret D1ant |D1| a b a }
+      APCT  2        { ... ret D1ant |D1| a b a 2 }
+      MULT           { ... ret D1ant |D1| a b a*2 }
+      ALVL  1,1      { ... ret D1ant |D1| a b }
+{ x := b - a + 1; }
+      APVL  1,1      { ... ret D1ant |D1| a b b }
+      APVL  1,0      { ... ret D1ant |D1| a b b a }
+      SUST           { ... ret D1ant |D1| a b b-a }
+      APCT  1        { ... ret D1ant |D1| a b b-a 1 }
+      SUMA           { ... ret D1ant |D1| a b (b-a)+1 }
+      ALVL  0,0      { ... ret D1ant |D1| a b }
+{ write(a); }
+      APVL  1,0      { ... ret D1ant |D1| a b a }
+      IMPR           { ... ret D1ant |D1| a b }
+{ write(b) }
+      APVL  1,1      { ... ret D1ant |D1| a b b }
+      IMPR           { ... ret D1ant |D1| a b }
+{ end; }
+      LMEM  2        { ... ret D1ant |D1| }
+      RTPR  1,0      { x }
+L1    NADA           { x }
+{ x := 4; }
+      APCT  4        { x 4 }
+      ALVL  0,0      { x }
+{ intercambiar; }
+      LLPR  L2       { x }
+{ write(x) }
+      APVL  0,0      { x x }
+      IMPR           { x }
+{ end. }
+      LMEM  1
+      PARA
+\end{lstlisting}
+
+\subsubsection*{Razón de las instrucciones generadas}
+
+\todo[inline]{Completar la columna Razón. Las filas sin sentencia de origen pertenecen a la misma sentencia que la fila de arriba.}
+
+\begin{longtable}{|p{3.2cm}|p{5cm}|p{7cm}|}
+\hline
+\textbf{Instrucción} & \textbf{Sentencia de origen} & \textbf{Razón} \\
+\hline
+\endhead
+\texttt{INPP} & \texttt{program locales;} & \\
+\hline
+\texttt{RMEM 1} & \texttt{var x: integer;} & \\
+\hline
+\texttt{DSVS L1} & \texttt{} & \\
+\hline
+\texttt{L2 ENPR 1} & \texttt{procedure intercambiar;} & \\
+\hline
+\texttt{RMEM 2} & \texttt{var a, b: integer;} & \\
+\hline
+\texttt{APVL 0,0} & \texttt{a := x;} & \\
+\hline
+\texttt{ALVL 1,0} & \texttt{} & \\
+\hline
+\texttt{APVL 1,0} & \texttt{b := a * 2;} & \\
+\hline
+\texttt{APCT 2} & \texttt{} & \\
+\hline
+\texttt{MULT} & \texttt{} & \\
+\hline
+\texttt{ALVL 1,1} & \texttt{} & \\
+\hline
+\texttt{APVL 1,1} & \texttt{x := b - a + 1;} & \\
+\hline
+\texttt{APVL 1,0} & \texttt{} & \\
+\hline
+\texttt{SUST} & \texttt{} & \\
+\hline
+\texttt{APCT 1} & \texttt{} & \\
+\hline
+\texttt{SUMA} & \texttt{} & \\
+\hline
+\texttt{ALVL 0,0} & \texttt{} & \\
+\hline
+\texttt{APVL 1,0} & \texttt{write(a);} & \\
+\hline
+\texttt{IMPR} & \texttt{} & \\
+\hline
+\texttt{APVL 1,1} & \texttt{write(b)} & \\
+\hline
+\texttt{IMPR} & \texttt{} & \\
+\hline
+\texttt{LMEM 2} & \texttt{end;} & \\
+\hline
+\texttt{RTPR 1,0} & \texttt{} & \\
+\hline
+\texttt{L1 NADA} & \texttt{} & \\
+\hline
+\texttt{APCT 4} & \texttt{x := 4;} & \\
+\hline
+\texttt{ALVL 0,0} & \texttt{} & \\
+\hline
+\texttt{LLPR L2} & \texttt{intercambiar;} & \\
+\hline
+\texttt{APVL 0,0} & \texttt{write(x)} & \\
+\hline
+\texttt{IMPR} & \texttt{} & \\
+\hline
+\texttt{LMEM 1} & \texttt{end.} & \\
+\hline
+\texttt{PARA} & \texttt{} & \\
+\hline
+\caption{Traducción de \texttt{locales.pas} instrucción por instrucción.}
+\label{tab:locales}
+\end{longtable}
+
+\subsection{Pasaje de parámetros para una función}
+
+\todo[inline]{Explicar: el llamador reserva el lugar del resultado con RMEM 1 y apila los argumentos; LLPR guarda la dirección de retorno y ENPR el D[1] anterior; por eso los parámetros quedan en -4 y -3 (fórmula -(n+3-i)) y el resultado en -5 (-(n+3)); RTPR 1,2 libera los 2 parámetros y deja el resultado en el tope.}
+
+\subsubsection*{Programa fuente}
+\begin{lstlisting}[frame=single, language=pascal, basicstyle=\ttfamily\small]
+program parametros;
+var r: integer;
+
+{ Función con dos parámetros por valor }
+function maximo(a: integer; b: integer): integer;
+begin
+  if a > b then
+    maximo := a
+  else
+    maximo := b
+end;
+
+begin
+  r := maximo(3, 8) + 1;
+  write(r)
+end.
+\end{lstlisting}
+
+\subsubsection*{Código MEPA generado}
+\begin{lstlisting}[frame=single, basicstyle=\ttfamily\small, breaklines=true]
+{ program parametros; }
+      INPP
+{ var r: integer; }
+      RMEM  1        { r }
+      DSVS  L1       { r }
+{ function maximo(a: integer; b: integer): integer; }
+L2    ENPR  1        { ... maximo a b ret D1ant |D1| }
+{ if a > b then }
+      APVL  1,-4     { ... maximo a b ret D1ant |D1| a }
+      APVL  1,-3     { ... maximo a b ret D1ant |D1| a b }
+      CMMA           { ... maximo a b ret D1ant |D1| a>b }
+      DSVF  L3       { ... maximo a b ret D1ant |D1| }
+{ maximo := a }
+      APVL  1,-4     { ... maximo a b ret D1ant |D1| a }
+      ALVL  1,-5     { ... maximo a b ret D1ant |D1| }
+      DSVS  L4       { ... maximo a b ret D1ant |D1| }
+L3    NADA           { ... maximo a b ret D1ant |D1| }
+{ maximo := b }
+      APVL  1,-3     { ... maximo a b ret D1ant |D1| b }
+      ALVL  1,-5     { ... maximo a b ret D1ant |D1| }
+L4    NADA           { ... maximo a b ret D1ant |D1| }
+{ end; }
+      RTPR  1,2      { r }
+L1    NADA           { r }
+{ r := maximo(3, 8) + 1; }
+      RMEM  1        { r maximo }
+      APCT  3        { r maximo 3 }
+      APCT  8        { r maximo 3 8 }
+      LLPR  L2       { r maximo(3,8) }
+      APCT  1        { r maximo(3,8) 1 }
+      SUMA           { r maximo(3,8)+1 }
+      ALVL  0,0      { r }
+{ write(r) }
+      APVL  0,0      { r r }
+      IMPR           { r }
+{ end. }
+      LMEM  1
+      PARA
+\end{lstlisting}
+
+\subsubsection*{Razón de las instrucciones generadas}
+
+\todo[inline]{Completar la columna Razón. Las filas sin sentencia de origen pertenecen a la misma sentencia que la fila de arriba.}
+
+\begin{longtable}{|p{3.2cm}|p{5cm}|p{7cm}|}
+\hline
+\textbf{Instrucción} & \textbf{Sentencia de origen} & \textbf{Razón} \\
+\hline
+\endhead
+\texttt{INPP} & \texttt{program parametros;} & \\
+\hline
+\texttt{RMEM 1} & \texttt{var r: integer;} & \\
+\hline
+\texttt{DSVS L1} & \texttt{} & \\
+\hline
+\texttt{L2 ENPR 1} & \texttt{function maximo(a: integer; b: integer): integer;} & \\
+\hline
+\texttt{APVL 1,-4} & \texttt{if a > b then} & \\
+\hline
+\texttt{APVL 1,-3} & \texttt{} & \\
+\hline
+\texttt{CMMA} & \texttt{} & \\
+\hline
+\texttt{DSVF L3} & \texttt{} & \\
+\hline
+\texttt{APVL 1,-4} & \texttt{maximo := a} & \\
+\hline
+\texttt{ALVL 1,-5} & \texttt{} & \\
+\hline
+\texttt{DSVS L4} & \texttt{} & \\
+\hline
+\texttt{L3 NADA} & \texttt{} & \\
+\hline
+\texttt{APVL 1,-3} & \texttt{maximo := b} & \\
+\hline
+\texttt{ALVL 1,-5} & \texttt{} & \\
+\hline
+\texttt{L4 NADA} & \texttt{} & \\
+\hline
+\texttt{RTPR 1,2} & \texttt{end;} & \\
+\hline
+\texttt{L1 NADA} & \texttt{} & \\
+\hline
+\texttt{RMEM 1} & \texttt{r := maximo(3, 8) + 1;} & \\
+\hline
+\texttt{APCT 3} & \texttt{} & \\
+\hline
+\texttt{APCT 8} & \texttt{} & \\
+\hline
+\texttt{LLPR L2} & \texttt{} & \\
+\hline
+\texttt{APCT 1} & \texttt{} & \\
+\hline
+\texttt{SUMA} & \texttt{} & \\
+\hline
+\texttt{ALVL 0,0} & \texttt{} & \\
+\hline
+\texttt{APVL 0,0} & \texttt{write(r)} & \\
+\hline
+\texttt{IMPR} & \texttt{} & \\
+\hline
+\texttt{LMEM 1} & \texttt{end.} & \\
+\hline
+\texttt{PARA} & \texttt{} & \\
+\hline
+\caption{Traducción de \texttt{parametros\_funcion.pas} instrucción por instrucción.}
+\label{tab:parametros-funcion}
+\end{longtable}
+
+\subsection{Sentencia condicional}
+
+\todo[inline]{Explicar el esquema: condición, DSVF al else, rama then, DSVS al final, etiquetas con NADA. Mostrar también el if sin else (un solo DSVF). Mencionar que los booleanos son 1 y 0.}
+
+\subsubsection*{Programa fuente}
+\begin{lstlisting}[frame=single, language=pascal, basicstyle=\ttfamily\small]
+program condicional;
+var n: integer;
+    positivo: boolean;
+begin
+  read(n);
+  positivo := n > 0;
+  if positivo then
+    write(1)
+  else
+    write(0);
+  if n = 0 then
+    write(n)
+end.
+\end{lstlisting}
+
+\subsubsection*{Código MEPA generado}
+\begin{lstlisting}[frame=single, basicstyle=\ttfamily\small, breaklines=true]
+{ program condicional; }
+      INPP
+{ positivo: boolean; }
+      RMEM  2        { n positivo }
+{ read(n); }
+      LEER           { n positivo read }
+      ALVL  0,0      { n positivo }
+{ positivo := n > 0; }
+      APVL  0,0      { n positivo n }
+      APCT  0        { n positivo n 0 }
+      CMMA           { n positivo n>0 }
+      ALVL  0,1      { n positivo }
+{ if positivo then }
+      APVL  0,1      { n positivo positivo }
+      DSVF  L1       { n positivo }
+{ write(1) }
+      APCT  1        { n positivo 1 }
+      IMPR           { n positivo }
+      DSVS  L2       { n positivo }
+L1    NADA           { n positivo }
+{ write(0); }
+      APCT  0        { n positivo 0 }
+      IMPR           { n positivo }
+L2    NADA           { n positivo }
+{ if n = 0 then }
+      APVL  0,0      { n positivo n }
+      APCT  0        { n positivo n 0 }
+      CMIG           { n positivo n=0 }
+      DSVF  L3       { n positivo }
+{ write(n) }
+      APVL  0,0      { n positivo n }
+      IMPR           { n positivo }
+L3    NADA           { n positivo }
+{ end. }
+      LMEM  2
+      PARA
+\end{lstlisting}
+
+\subsubsection*{Razón de las instrucciones generadas}
+
+\todo[inline]{Completar la columna Razón. Las filas sin sentencia de origen pertenecen a la misma sentencia que la fila de arriba.}
+
+\begin{longtable}{|p{3.2cm}|p{5cm}|p{7cm}|}
+\hline
+\textbf{Instrucción} & \textbf{Sentencia de origen} & \textbf{Razón} \\
+\hline
+\endhead
+\texttt{INPP} & \texttt{program condicional;} & \\
+\hline
+\texttt{RMEM 2} & \texttt{positivo: boolean;} & \\
+\hline
+\texttt{LEER} & \texttt{read(n);} & \\
+\hline
+\texttt{ALVL 0,0} & \texttt{} & \\
+\hline
+\texttt{APVL 0,0} & \texttt{positivo := n > 0;} & \\
+\hline
+\texttt{APCT 0} & \texttt{} & \\
+\hline
+\texttt{CMMA} & \texttt{} & \\
+\hline
+\texttt{ALVL 0,1} & \texttt{} & \\
+\hline
+\texttt{APVL 0,1} & \texttt{if positivo then} & \\
+\hline
+\texttt{DSVF L1} & \texttt{} & \\
+\hline
+\texttt{APCT 1} & \texttt{write(1)} & \\
+\hline
+\texttt{IMPR} & \texttt{} & \\
+\hline
+\texttt{DSVS L2} & \texttt{} & \\
+\hline
+\texttt{L1 NADA} & \texttt{} & \\
+\hline
+\texttt{APCT 0} & \texttt{write(0);} & \\
+\hline
+\texttt{IMPR} & \texttt{} & \\
+\hline
+\texttt{L2 NADA} & \texttt{} & \\
+\hline
+\texttt{APVL 0,0} & \texttt{if n = 0 then} & \\
+\hline
+\texttt{APCT 0} & \texttt{} & \\
+\hline
+\texttt{CMIG} & \texttt{} & \\
+\hline
+\texttt{DSVF L3} & \texttt{} & \\
+\hline
+\texttt{APVL 0,0} & \texttt{write(n)} & \\
+\hline
+\texttt{IMPR} & \texttt{} & \\
+\hline
+\texttt{L3 NADA} & \texttt{} & \\
+\hline
+\texttt{LMEM 2} & \texttt{end.} & \\
+\hline
+\texttt{PARA} & \texttt{} & \\
+\hline
+\caption{Traducción de \texttt{condicional.pas} instrucción por instrucción.}
+\label{tab:condicional}
+\end{longtable}
+
+\subsection{Sentencia repetitiva}
+
+\todo[inline]{Explicar el esquema del while: etiqueta de inicio, condición, DSVF a la salida, cuerpo y DSVS de vuelta al inicio. Remarcar que la condición se evalúa en cada vuelta.}
+
+\subsubsection*{Programa fuente}
+\begin{lstlisting}[frame=single, language=pascal, basicstyle=\ttfamily\small]
+program repetitiva;
+var i, suma: integer;
+begin
+  read(i);
+  suma := 0;
+  while i > 0 do
+  begin
+    suma := suma + i;
+    i := i - 1
+  end;
+  write(suma)
+end.
+\end{lstlisting}
+
+\subsubsection*{Código MEPA generado}
+\begin{lstlisting}[frame=single, basicstyle=\ttfamily\small, breaklines=true]
+{ program repetitiva; }
+      INPP
+{ var i, suma: integer; }
+      RMEM  2        { i suma }
+{ read(i); }
+      LEER           { i suma read }
+      ALVL  0,0      { i suma }
+{ suma := 0; }
+      APCT  0        { i suma 0 }
+      ALVL  0,1      { i suma }
+{ while i > 0 do }
+L1    NADA           { i suma }
+      APVL  0,0      { i suma i }
+      APCT  0        { i suma i 0 }
+      CMMA           { i suma i>0 }
+      DSVF  L2       { i suma }
+{ suma := suma + i; }
+      APVL  0,1      { i suma suma }
+      APVL  0,0      { i suma suma i }
+      SUMA           { i suma suma+i }
+      ALVL  0,1      { i suma }
+{ i := i - 1 }
+      APVL  0,0      { i suma i }
+      APCT  1        { i suma i 1 }
+      SUST           { i suma i-1 }
+      ALVL  0,0      { i suma }
+{ end; }
+      DSVS  L1       { i suma }
+L2    NADA           { i suma }
+{ write(suma) }
+      APVL  0,1      { i suma suma }
+      IMPR           { i suma }
+{ end. }
+      LMEM  2
+      PARA
+\end{lstlisting}
+
+\subsubsection*{Razón de las instrucciones generadas}
+
+\todo[inline]{Completar la columna Razón. Las filas sin sentencia de origen pertenecen a la misma sentencia que la fila de arriba.}
+
+\begin{longtable}{|p{3.2cm}|p{5cm}|p{7cm}|}
+\hline
+\textbf{Instrucción} & \textbf{Sentencia de origen} & \textbf{Razón} \\
+\hline
+\endhead
+\texttt{INPP} & \texttt{program repetitiva;} & \\
+\hline
+\texttt{RMEM 2} & \texttt{var i, suma: integer;} & \\
+\hline
+\texttt{LEER} & \texttt{read(i);} & \\
+\hline
+\texttt{ALVL 0,0} & \texttt{} & \\
+\hline
+\texttt{APCT 0} & \texttt{suma := 0;} & \\
+\hline
+\texttt{ALVL 0,1} & \texttt{} & \\
+\hline
+\texttt{L1 NADA} & \texttt{while i > 0 do} & \\
+\hline
+\texttt{APVL 0,0} & \texttt{} & \\
+\hline
+\texttt{APCT 0} & \texttt{} & \\
+\hline
+\texttt{CMMA} & \texttt{} & \\
+\hline
+\texttt{DSVF L2} & \texttt{} & \\
+\hline
+\texttt{APVL 0,1} & \texttt{suma := suma + i;} & \\
+\hline
+\texttt{APVL 0,0} & \texttt{} & \\
+\hline
+\texttt{SUMA} & \texttt{} & \\
+\hline
+\texttt{ALVL 0,1} & \texttt{} & \\
+\hline
+\texttt{APVL 0,0} & \texttt{i := i - 1} & \\
+\hline
+\texttt{APCT 1} & \texttt{} & \\
+\hline
+\texttt{SUST} & \texttt{} & \\
+\hline
+\texttt{ALVL 0,0} & \texttt{} & \\
+\hline
+\texttt{DSVS L1} & \texttt{end;} & \\
+\hline
+\texttt{L2 NADA} & \texttt{} & \\
+\hline
+\texttt{APVL 0,1} & \texttt{write(suma)} & \\
+\hline
+\texttt{IMPR} & \texttt{} & \\
+\hline
+\texttt{LMEM 2} & \texttt{end.} & \\
+\hline
+\texttt{PARA} & \texttt{} & \\
+\hline
+\caption{Traducción de \texttt{repetitiva.pas} instrucción por instrucción.}
+\label{tab:repetitiva}
+\end{longtable}
+
+
+% --- (e) LIMITACIONES ---
+\section{Limitaciones}
+El producto generado presenta las siguientes restricciones:
+\begin{itemize}
+    \item \textbf{Recuperación de errores simple:} \todo[inline]{Se mantiene stop-on-first-error; con errores léxicos no se genera código.}
+    \item \textbf{Subconjunto del lenguaje:} \todo[inline]{Sólo integer y boolean; sin arreglos, registros ni pasaje por referencia; read y write de un solo argumento.}
+    \item \textbf{Sin chequeos en tiempo de ejecución:} \todo[inline]{No se generan CONT ni DIVC.}
+    \item \textbf{Evaluación completa de expresiones booleanas:} \todo[inline]{and y or no hacen cortocircuito.}
+    \item \todo[inline]{Agregar otras que encuentren.}
+\end{itemize}
+
+% --- (g) PRODUCTO / APLICATIVO ---
+\section{Implementación}
+
+% (g) i
+\subsection{Descripción del producto y herramientas utilizadas}
+
+\todo[inline]{Lenguaje (Python 3), sin dependencias externas, PyInstaller para el ejecutable, unittest para los tests. Describir los componentes: compilador.py (léxico, sintáctico, semántico y generación de código) y mepa.py (intérprete que ejecuta el código generado y muestra la traza de la pila).}
+
+Dentro del ZIP enviado se puede encontrar:
+
+\begin{itemize}
+    \item \todo[inline]{Ejecutables (Windows / Linux).}
+    \item El código fuente \textit{compilador.py} y el intérprete \textit{mepa.py}.
+    \item La carpeta \textit{/pruebas} con los programas de ejemplo (\texttt{.pas}) y sus traducciones (\texttt{.mepa}), además de programas con errores intencionales.
+    \item \todo[inline]{La carpeta /tests con los tests automáticos, si se incluye.}
+\end{itemize}
+
+% (g) ii -- también cubre 3(a) iv: instructivo de instalación
+\subsection{Manual de instalación}
+
+El compilador está contenido dentro de un ejecutable, por lo que no es necesario instalar dependencia alguna. Si quisiera armar su propio ejecutable siga los siguientes pasos:
+
+\begin{enumerate}
+    \item Crear el entorno virtual:\\
+    \verb|python3 -m venv venv|
+    \item Activarlo:\\
+    \verb|source venv/bin/activate|
+    \item Instalar PyInstaller:\\
+    \verb|pip install pyinstaller|
+    \item Generar el ejecutable:\\
+    \verb|pyinstaller --onefile --name compilador compilador.py|
+    \item Desactivar el entorno virtual:\\
+    \verb|deactivate|
+    \item Copiar el binario al directorio del proyecto:\\
+    \verb|cp dist/compilador .|
+\end{enumerate}
+
+% (g) ii -- también cubre 3(a) iii: instructivo de uso
+\subsection{Manual de uso}
+
+\todo[inline]{Explicar el uso por línea de comandos y qué se obtiene en cada caso.}
+
+\begin{enumerate}
+    \item Abrir una terminal o consola de comandos.
+    \item Compilar un programa:\\
+    \verb|$ ./compilador archivo.pas|
+    \item Resultados posibles:
+    \begin{itemize}
+        \item \todo[inline]{Éxito: se escribe archivo.mepa junto al fuente, se imprime "Compilación exitosa: archivo.mepa" y las tablas de símbolos; código de salida 0.}
+        \item \todo[inline]{Error léxico, sintáctico o semántico: se imprime el error con su línea y no se genera el .mepa; código de salida 1.}
+    \end{itemize}
+    \item Ejecutar el código generado con el intérprete (opcional):\\
+    \verb|$ python3 mepa.py archivo.mepa [valores de entrada]|\\
+    Los valores de entrada son los números que leen las sentencias \texttt{read}, en orden.
+\end{enumerate}
+
+El intérprete muestra cada instrucción ejecutada junto con el contenido de la pila después de ejecutarla:
+
+\begin{itemize}
+    \item La pila se lee de izquierda (fondo) a derecha (tope). Un \texttt{?} indica una posición reservada que todavía no tiene valor.
+    \item Antes de las instrucciones de cada sentencia se muestra, entre llaves, la línea del programa fuente de la que provienen.
+    \item Mientras un subprograma de nivel $k$ está activo, la marca \texttt{|D$k$|} indica la posición a la que apunta $D[k]$. Las variables locales quedan a su derecha (desplazamientos 0, 1, \ldots) y los parámetros a su izquierda (desplazamientos negativos).
+    \item Cuando se ejecuta \texttt{IMPR}, se indica el valor impreso con \texttt{=> imprime}.
+    \item Si ocurre un error de ejecución, la traza se detiene en la instrucción que lo produjo y se informa el error.
+\end{itemize}
+
+\subsection{Tabla de Errores y Tratamiento Sugerido}
+
+\todo[inline]{Reutilizar las tablas de errores léxicos, sintácticos y semánticos del TP anterior y agregar la fila nueva.}
+
+\begin{longtable}{|p{5.5cm}|p{5cm}|p{4.5cm}|}
+\hline
+\textbf{Mensaje} & \textbf{Descripción} & \textbf{Fase de Detección} \\
+\hline
+\endhead
+\texttt{Hubo errores léxicos: no se genera código} & El análisis terminó pero el analizador léxico reportó al menos un error. & Al finalizar el análisis, antes de escribir el \texttt{.mepa}. \\
+\hline
+\caption{Tabla de Errores.}
+\label{tab:errores}
+\end{longtable}
+
+% 3(a) iii: ejecuciones de ejemplo
+\subsection{Ejemplos de ejecución}
+
+\subsubsection*{Compilación exitosa}
+\todo[inline]{Pegar la salida real de compilar un ejemplo, p. ej. pruebas/completo.pas.}
+\begin{lstlisting}[frame=single, basicstyle=\ttfamily\small]
+$ ./compilador pruebas/completo.pas
+Compilación exitosa: pruebas/completo.mepa
+...
+\end{lstlisting}
+
+\subsubsection*{Ejecución del código generado}
+Ejecución del código generado para \texttt{parametros\_funcion.pas} (sección 3.2). En la traza se observa cómo el llamador reserva el lugar del resultado y apila los argumentos, cómo la función accede a ellos con desplazamientos negativos respecto de \texttt{|D1|}, y cómo \texttt{RTPR} libera la pila dejando el resultado en el tope:
+
+\begin{lstlisting}[frame=single, basicstyle=\ttfamily\small, breaklines=true]
+$ python3 mepa.py pruebas/parametros_funcion.mepa
+{ program parametros; }
+INPP
+{ var r: integer; }
+RMEM 1          ?
+DSVS L1         ?
+L1 NADA         ?
+{ r := maximo(3, 8) + 1; }
+RMEM 1          ? ?
+APCT 3          ? ? 3
+APCT 8          ? ? 3 8
+LLPR L2         ? ? 3 8 21
+{ function maximo(a: integer; b: integer): integer; }
+L2 ENPR 1       ? ? 3 8 21 0 |D1|
+{ if a > b then }
+APVL 1,-4       ? ? 3 8 21 0 |D1| 3
+APVL 1,-3       ? ? 3 8 21 0 |D1| 3 8
+CMMA            ? ? 3 8 21 0 |D1| 0
+DSVF L3         ? ? 3 8 21 0 |D1|
+L3 NADA         ? ? 3 8 21 0 |D1|
+{ maximo := b }
+APVL 1,-3       ? ? 3 8 21 0 |D1| 8
+ALVL 1,-5       ? 8 3 8 21 0 |D1|
+L4 NADA         ? 8 3 8 21 0 |D1|
+{ end; }
+RTPR 1,2        ? 8
+APCT 1          ? 8 1
+SUMA            ? 9
+ALVL 0,0        9
+{ write(r) }
+APVL 0,0        9 9
+IMPR            9   => imprime 9
+{ end. }
+LMEM 1
+PARA
+\end{lstlisting}
+
+\subsubsection*{Compilación con errores}
+\todo[inline]{Pegar uno o dos ejemplos con error (p. ej. pruebas/sem\_no\_declarado.pas) y aclarar que no se genera el .mepa.}
+\begin{lstlisting}[frame=single, basicstyle=\ttfamily\small]
+$ ./compilador pruebas/sem_no_declarado.pas
+...
+\end{lstlisting}
+
+% (g) iii
+\section{Problemas encontrados}
+Durante el desarrollo surgieron los siguientes desafíos:
+\begin{itemize}
+    \item \todo[inline]{Problema 1 (por ejemplo: calcular los desplazamientos negativos de los parámetros y del resultado de una función).}
+    \item \todo[inline]{Problema 2 (por ejemplo: no contar con un intérprete MEPA para verificar el código generado).}
+    \item \todo[inline]{Problema 3 (por ejemplo: comentarios de Pascal en la misma línea que el código).}
+\end{itemize}
+
+% --- (f) CONCLUSIONES ---
+\section{Conclusión}
+\todo[inline]{Conclusiones de la etapa.}
+
+\end{document}

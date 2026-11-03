@@ -1,0 +1,68 @@
+{ program completo; }
+      INPP
+{ var n: integer; }
+      RMEM  1        { n }
+      DSVS  L1       { n }
+{ function fact(k: integer): integer; }
+L2    ENPR  1        { ... fact k ret D1ant |D1| }
+{ if k < 2 then }
+      APVL  1,-3     { ... fact k ret D1ant |D1| k }
+      APCT  2        { ... fact k ret D1ant |D1| k 2 }
+      CMME           { ... fact k ret D1ant |D1| k<2 }
+      DSVF  L3       { ... fact k ret D1ant |D1| }
+{ fact := 1 }
+      APCT  1        { ... fact k ret D1ant |D1| 1 }
+      ALVL  1,-4     { ... fact k ret D1ant |D1| }
+      DSVS  L4       { ... fact k ret D1ant |D1| }
+L3    NADA           { ... fact k ret D1ant |D1| }
+{ fact := k * fact(k - 1) }
+      APVL  1,-3     { ... fact k ret D1ant |D1| k }
+      RMEM  1        { ... fact k ret D1ant |D1| k fact }
+      APVL  1,-3     { ... fact k ret D1ant |D1| k fact k }
+      APCT  1        { ... fact k ret D1ant |D1| k fact k 1 }
+      SUST           { ... fact k ret D1ant |D1| k fact k-1 }
+      LLPR  L2       { ... fact k ret D1ant |D1| k fact(k-1) }
+      MULT           { ... fact k ret D1ant |D1| k*fact(k-1) }
+      ALVL  1,-4     { ... fact k ret D1ant |D1| }
+L4    NADA           { ... fact k ret D1ant |D1| }
+{ end; }
+      RTPR  1,1      { n }
+{ procedure tabla(tope: integer); }
+L5    ENPR  1        { ... tope ret D1ant |D1| }
+{ var i: integer; }
+      RMEM  1        { ... tope ret D1ant |D1| i }
+{ i := 1; }
+      APCT  1        { ... tope ret D1ant |D1| i 1 }
+      ALVL  1,0      { ... tope ret D1ant |D1| i }
+{ while i <= tope do }
+L6    NADA           { ... tope ret D1ant |D1| i }
+      APVL  1,0      { ... tope ret D1ant |D1| i i }
+      APVL  1,-3     { ... tope ret D1ant |D1| i i tope }
+      CMNI           { ... tope ret D1ant |D1| i i<=tope }
+      DSVF  L7       { ... tope ret D1ant |D1| i }
+{ write(fact(i)); }
+      RMEM  1        { ... tope ret D1ant |D1| i fact }
+      APVL  1,0      { ... tope ret D1ant |D1| i fact i }
+      LLPR  L2       { ... tope ret D1ant |D1| i fact(i) }
+      IMPR           { ... tope ret D1ant |D1| i }
+{ i := i + 1 }
+      APVL  1,0      { ... tope ret D1ant |D1| i i }
+      APCT  1        { ... tope ret D1ant |D1| i i 1 }
+      SUMA           { ... tope ret D1ant |D1| i i+1 }
+      ALVL  1,0      { ... tope ret D1ant |D1| i }
+{ end }
+      DSVS  L6       { ... tope ret D1ant |D1| i }
+L7    NADA           { ... tope ret D1ant |D1| i }
+{ end; }
+      LMEM  1        { ... tope ret D1ant |D1| }
+      RTPR  1,1      { n }
+L1    NADA           { n }
+{ read(n); }
+      LEER           { n read }
+      ALVL  0,0      { n }
+{ tabla(n) }
+      APVL  0,0      { n n }
+      LLPR  L5       { n }
+{ end. }
+      LMEM  1
+      PARA

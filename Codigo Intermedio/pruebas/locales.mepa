@@ -1,0 +1,45 @@
+{ program locales; }
+      INPP
+{ var x: integer; }
+      RMEM  1        { x }
+      DSVS  L1       { x }
+{ procedure intercambiar; }
+L2    ENPR  1        { ... ret D1ant |D1| }
+{ var a, b: integer; }
+      RMEM  2        { ... ret D1ant |D1| a b }
+{ a := x; }
+      APVL  0,0      { ... ret D1ant |D1| a b x }
+      ALVL  1,0      { ... ret D1ant |D1| a b }
+{ b := a * 2; }
+      APVL  1,0      { ... ret D1ant |D1| a b a }
+      APCT  2        { ... ret D1ant |D1| a b a 2 }
+      MULT           { ... ret D1ant |D1| a b a*2 }
+      ALVL  1,1      { ... ret D1ant |D1| a b }
+{ x := b - a + 1; }
+      APVL  1,1      { ... ret D1ant |D1| a b b }
+      APVL  1,0      { ... ret D1ant |D1| a b b a }
+      SUST           { ... ret D1ant |D1| a b b-a }
+      APCT  1        { ... ret D1ant |D1| a b b-a 1 }
+      SUMA           { ... ret D1ant |D1| a b (b-a)+1 }
+      ALVL  0,0      { ... ret D1ant |D1| a b }
+{ write(a); }
+      APVL  1,0      { ... ret D1ant |D1| a b a }
+      IMPR           { ... ret D1ant |D1| a b }
+{ write(b) }
+      APVL  1,1      { ... ret D1ant |D1| a b b }
+      IMPR           { ... ret D1ant |D1| a b }
+{ end; }
+      LMEM  2        { ... ret D1ant |D1| }
+      RTPR  1,0      { x }
+L1    NADA           { x }
+{ x := 4; }
+      APCT  4        { x 4 }
+      ALVL  0,0      { x }
+{ intercambiar; }
+      LLPR  L2       { x }
+{ write(x) }
+      APVL  0,0      { x x }
+      IMPR           { x }
+{ end. }
+      LMEM  1
+      PARA
