@@ -156,7 +156,7 @@ Para la resolución de este laboratorio se aplicaron las siguientes estrategias:
 % --- (d) EJEMPLOS DE TRADUCCIÓN ---
 \section{Ejemplos de traducción a código MEPA}
 
-Los archivos de ejemplo se encuentran en la carpeta \texttt{pruebas/}. Cada uno se compiló con el aplicativo y el código mostrado es exactamente el archivo \texttt{.mepa} generado. En él, cada línea del programa fuente aparece como comentario encima de las instrucciones que genera, y a la derecha de cada instrucción se indica, también como comentario, el contenido de la pila después de ejecutarla. Como el compilador no ejecuta el programa, la pila se muestra en forma simbólica: cada posición se nombra con la variable, el parámetro o la expresión cuyo valor contiene. Dentro de un subprograma, \texttt{...} representa la parte de la pila que pertenece a quien lo llamó, \texttt{ret} la dirección de retorno, \texttt{D$k$ant} el valor anterior de $D[k]$ y \texttt{|D$k$|} la posición a la que apunta $D[k]$.
+Los archivos de ejemplo se encuentran en la carpeta \texttt{pruebas/}. Cada uno se compiló con el aplicativo usando la opción \texttt{-c} y el código mostrado es exactamente el archivo \texttt{.mepa} generado. En él, cada línea del programa fuente aparece como comentario encima de las instrucciones que genera, y a la derecha de cada instrucción se indica, también como comentario, el contenido de la pila después de ejecutarla. Como el compilador no ejecuta el programa, la pila se muestra en forma simbólica: cada posición se nombra con la variable, el parámetro o la expresión cuyo valor contiene. Dentro de un subprograma, \texttt{...} representa la parte de la pila que pertenece a quien lo llamó, \texttt{ret} la dirección de retorno, \texttt{D$k$ant} el valor anterior de $D[k]$ y \texttt{|D$k$|} la posición a la que apunta $D[k]$.
 
 \subsection{Variables locales de un subprograma}
 
@@ -213,10 +213,10 @@ L2    ENPR  1        { ... ret D1ant |D1| }
       ALVL  0,0      { ... ret D1ant |D1| a b }
 { write(a); }
       APVL  1,0      { ... ret D1ant |D1| a b a }
-      IMPR           { ... ret D1ant |D1| a b }
+      IMLN           { ... ret D1ant |D1| a b }
 { write(b) }
       APVL  1,1      { ... ret D1ant |D1| a b b }
-      IMPR           { ... ret D1ant |D1| a b }
+      IMLN           { ... ret D1ant |D1| a b }
 { end; }
       LMEM  2        { ... ret D1ant |D1| }
       RTPR  1,0      { x }
@@ -228,7 +228,7 @@ L1    NADA           { x }
       LLPR  L2       { x }
 { write(x) }
       APVL  0,0      { x x }
-      IMPR           { x }
+      IMLN           { x }
 { end. }
       LMEM  1
       PARA
@@ -236,74 +236,72 @@ L1    NADA           { x }
 
 \subsubsection*{Razón de las instrucciones generadas}
 
-\todo[inline]{Completar la columna Razón. Las filas sin sentencia de origen pertenecen a la misma sentencia que la fila de arriba.}
-
 \begin{longtable}{|p{3.2cm}|p{5cm}|p{7cm}|}
 \hline
 \textbf{Instrucción} & \textbf{Sentencia de origen} & \textbf{Razón} \\
 \hline
 \endhead
-\texttt{INPP} & \texttt{program locales;} & \\
+\texttt{INPP} & \texttt{program locales;} & Inicializa la máquina. Es la primera instrucción de todo programa. \\
 \hline
-\texttt{RMEM 1} & \texttt{var x: integer;} & \\
+\texttt{RMEM 1} & \texttt{var x: integer;} & Reserva lugar en la pila para las variables globales. \\
 \hline
-\texttt{DSVS L1} & \texttt{} & \\
+\texttt{DSVS L1} & \texttt{} & Saltea el código de los subprogramas para continuar en el cuerpo principal. \\
 \hline
-\texttt{L2 ENPR 1} & \texttt{procedure intercambiar;} & \\
+\texttt{L2 ENPR 1} & \texttt{procedure intercambiar;} & Entra al subprograma de nivel 1: guarda $D[1]$ y lo apunta a sus variables locales. \\
 \hline
-\texttt{RMEM 2} & \texttt{var a, b: integer;} & \\
+\texttt{RMEM 2} & \texttt{var a, b: integer;} & Reserva lugar para las variables locales: \texttt{a} en (1,0) y \texttt{b} en (1,1). \\
 \hline
-\texttt{APVL 0,0} & \texttt{a := x;} & \\
+\texttt{APVL 0,0} & \texttt{a := x;} & Apila una variable global: se accede con nivel 0 desde cualquier subprograma. \\
 \hline
-\texttt{ALVL 1,0} & \texttt{} & \\
+\texttt{ALVL 1,0} & \texttt{} & Desapila el valor y lo guarda en una variable local (nivel 1). \\
 \hline
-\texttt{APVL 1,0} & \texttt{b := a * 2;} & \\
+\texttt{APVL 1,0} & \texttt{b := a * 2;} & Apila el valor de una variable local. \\
 \hline
-\texttt{APCT 2} & \texttt{} & \\
+\texttt{APCT 2} & \texttt{} & Apila una constante. \\
 \hline
-\texttt{MULT} & \texttt{} & \\
+\texttt{MULT} & \texttt{} & Reemplaza los dos operandos del tope por su producto. \\
 \hline
-\texttt{ALVL 1,1} & \texttt{} & \\
+\texttt{ALVL 1,1} & \texttt{} & Desapila el resultado y lo guarda en la variable asignada. \\
 \hline
-\texttt{APVL 1,1} & \texttt{x := b - a + 1;} & \\
+\texttt{APVL 1,1} & \texttt{x := b - a + 1;} & Apila el primer operando. \\
 \hline
-\texttt{APVL 1,0} & \texttt{} & \\
+\texttt{APVL 1,0} & \texttt{} & Apila el segundo operando. \\
 \hline
-\texttt{SUST} & \texttt{} & \\
+\texttt{SUST} & \texttt{} & Reemplaza los dos operandos del tope por su diferencia. \\
 \hline
-\texttt{APCT 1} & \texttt{} & \\
+\texttt{APCT 1} & \texttt{} & Apila el operando derecho de la suma. \\
 \hline
-\texttt{SUMA} & \texttt{} & \\
+\texttt{SUMA} & \texttt{} & Reemplaza los dos operandos del tope por su suma. \\
 \hline
-\texttt{ALVL 0,0} & \texttt{} & \\
+\texttt{ALVL 0,0} & \texttt{} & Desapila el resultado y lo guarda en la variable global (nivel 0). \\
 \hline
-\texttt{APVL 1,0} & \texttt{write(a);} & \\
+\texttt{APVL 1,0} & \texttt{write(a);} & Apila el valor a imprimir. \\
 \hline
-\texttt{IMPR} & \texttt{} & \\
+\texttt{IMLN} & \texttt{} & Desapila el valor y lo imprime, seguido de un salto de línea. \\
 \hline
-\texttt{APVL 1,1} & \texttt{write(b)} & \\
+\texttt{APVL 1,1} & \texttt{write(b)} & Apila el valor a imprimir. \\
 \hline
-\texttt{IMPR} & \texttt{} & \\
+\texttt{IMLN} & \texttt{} & Desapila el valor y lo imprime, seguido de un salto de línea. \\
 \hline
-\texttt{LMEM 2} & \texttt{end;} & \\
+\texttt{LMEM 2} & \texttt{end;} & Libera las variables locales. \\
 \hline
-\texttt{RTPR 1,0} & \texttt{} & \\
+\texttt{RTPR 1,0} & \texttt{} & Restaura $D[1]$ y vuelve al llamador. No libera parámetros porque no tiene. \\
 \hline
-\texttt{L1 NADA} & \texttt{} & \\
+\texttt{L1 NADA} & \texttt{} & Destino del \texttt{DSVS}: comienza el cuerpo del programa principal. \\
 \hline
-\texttt{APCT 4} & \texttt{x := 4;} & \\
+\texttt{APCT 4} & \texttt{x := 4;} & Apila una constante. \\
 \hline
-\texttt{ALVL 0,0} & \texttt{} & \\
+\texttt{ALVL 0,0} & \texttt{} & Desapila el valor y lo guarda en la variable global. \\
 \hline
-\texttt{LLPR L2} & \texttt{intercambiar;} & \\
+\texttt{LLPR L2} & \texttt{intercambiar;} & Apila la dirección de retorno y salta al procedimiento. \\
 \hline
-\texttt{APVL 0,0} & \texttt{write(x)} & \\
+\texttt{APVL 0,0} & \texttt{write(x)} & Apila el valor a imprimir. \\
 \hline
-\texttt{IMPR} & \texttt{} & \\
+\texttt{IMLN} & \texttt{} & Desapila el valor y lo imprime, seguido de un salto de línea. \\
 \hline
-\texttt{LMEM 1} & \texttt{end.} & \\
+\texttt{LMEM 1} & \texttt{end.} & Libera las variables globales. \\
 \hline
-\texttt{PARA} & \texttt{} & \\
+\texttt{PARA} & \texttt{} & Detiene la máquina. Es la última instrucción de todo programa. \\
 \hline
 \caption{Traducción de \texttt{locales.pas} instrucción por instrucción.}
 \label{tab:locales}
@@ -369,7 +367,7 @@ L1    NADA           { r }
       ALVL  0,0      { r }
 { write(r) }
       APVL  0,0      { r r }
-      IMPR           { r }
+      IMLN           { r }
 { end. }
       LMEM  1
       PARA
@@ -377,68 +375,66 @@ L1    NADA           { r }
 
 \subsubsection*{Razón de las instrucciones generadas}
 
-\todo[inline]{Completar la columna Razón. Las filas sin sentencia de origen pertenecen a la misma sentencia que la fila de arriba.}
-
 \begin{longtable}{|p{3.2cm}|p{5cm}|p{7cm}|}
 \hline
 \textbf{Instrucción} & \textbf{Sentencia de origen} & \textbf{Razón} \\
 \hline
 \endhead
-\texttt{INPP} & \texttt{program parametros;} & \\
+\texttt{INPP} & \texttt{program parametros;} & Inicializa la máquina. Es la primera instrucción de todo programa. \\
 \hline
-\texttt{RMEM 1} & \texttt{var r: integer;} & \\
+\texttt{RMEM 1} & \texttt{var r: integer;} & Reserva lugar en la pila para las variables globales. \\
 \hline
-\texttt{DSVS L1} & \texttt{} & \\
+\texttt{DSVS L1} & \texttt{} & Saltea el código de los subprogramas para continuar en el cuerpo principal. \\
 \hline
-\texttt{L2 ENPR 1} & \texttt{function maximo(a: integer; b: integer): integer;} & \\
+\texttt{L2 ENPR 1} & \texttt{function maximo(a: integer; b: integer): integer;} & Entra a la función de nivel 1: guarda $D[1]$ y lo apunta a su zona de la pila. No tiene variables locales, por eso no hay \texttt{RMEM}. \\
 \hline
-\texttt{APVL 1,-4} & \texttt{if a > b then} & \\
+\texttt{APVL 1,-4} & \texttt{if a > b then} & Apila el parámetro \texttt{a}. Con $n=2$, el parámetro $i=1$ está en $-(n+3-i)=-4$. \\
 \hline
-\texttt{APVL 1,-3} & \texttt{} & \\
+\texttt{APVL 1,-3} & \texttt{} & Apila el parámetro \texttt{b}. Con $n=2$, el parámetro $i=2$ está en $-(n+3-i)=-3$. \\
 \hline
-\texttt{CMMA} & \texttt{} & \\
+\texttt{CMMA} & \texttt{} & Reemplaza los dos operandos del tope por 1 si el primero es mayor y por 0 si no. \\
 \hline
-\texttt{DSVF L3} & \texttt{} & \\
+\texttt{DSVF L3} & \texttt{} & Desapila la condición y, si es falsa, salta a la rama \texttt{else}. \\
 \hline
-\texttt{APVL 1,-4} & \texttt{maximo := a} & \\
+\texttt{APVL 1,-4} & \texttt{maximo := a} & Apila el valor a retornar. \\
 \hline
-\texttt{ALVL 1,-5} & \texttt{} & \\
+\texttt{ALVL 1,-5} & \texttt{} & Lo guarda en el lugar del resultado, que está debajo de los parámetros: $-(n+3)=-5$. \\
 \hline
-\texttt{DSVS L4} & \texttt{} & \\
+\texttt{DSVS L4} & \texttt{} & Saltea la rama \texttt{else}. \\
 \hline
-\texttt{L3 NADA} & \texttt{} & \\
+\texttt{L3 NADA} & \texttt{} & Destino del \texttt{DSVF}: comienza la rama \texttt{else}. \\
 \hline
-\texttt{APVL 1,-3} & \texttt{maximo := b} & \\
+\texttt{APVL 1,-3} & \texttt{maximo := b} & Apila el valor a retornar. \\
 \hline
-\texttt{ALVL 1,-5} & \texttt{} & \\
+\texttt{ALVL 1,-5} & \texttt{} & Lo guarda en el lugar del resultado. \\
 \hline
-\texttt{L4 NADA} & \texttt{} & \\
+\texttt{L4 NADA} & \texttt{} & Destino del \texttt{DSVS}: termina el condicional. \\
 \hline
-\texttt{RTPR 1,2} & \texttt{end;} & \\
+\texttt{RTPR 1,2} & \texttt{end;} & Restaura $D[1]$, vuelve al llamador y libera los 2 parámetros. El resultado queda en el tope. \\
 \hline
-\texttt{L1 NADA} & \texttt{} & \\
+\texttt{L1 NADA} & \texttt{} & Destino del primer \texttt{DSVS}: comienza el cuerpo del programa principal. \\
 \hline
-\texttt{RMEM 1} & \texttt{r := maximo(3, 8) + 1;} & \\
+\texttt{RMEM 1} & \texttt{r := maximo(3, 8) + 1;} & Reserva el lugar del resultado antes de apilar los argumentos. \\
 \hline
-\texttt{APCT 3} & \texttt{} & \\
+\texttt{APCT 3} & \texttt{} & Apila el primer argumento, pasado por valor. \\
 \hline
-\texttt{APCT 8} & \texttt{} & \\
+\texttt{APCT 8} & \texttt{} & Apila el segundo argumento. \\
 \hline
-\texttt{LLPR L2} & \texttt{} & \\
+\texttt{LLPR L2} & \texttt{} & Apila la dirección de retorno y salta a la función. Al volver, el resultado queda en el tope. \\
 \hline
-\texttt{APCT 1} & \texttt{} & \\
+\texttt{APCT 1} & \texttt{} & Apila el segundo operando de la suma. \\
 \hline
-\texttt{SUMA} & \texttt{} & \\
+\texttt{SUMA} & \texttt{} & Reemplaza el resultado de la función y la constante por su suma. \\
 \hline
-\texttt{ALVL 0,0} & \texttt{} & \\
+\texttt{ALVL 0,0} & \texttt{} & Desapila el resultado y lo guarda en la variable global. \\
 \hline
-\texttt{APVL 0,0} & \texttt{write(r)} & \\
+\texttt{APVL 0,0} & \texttt{write(r)} & Apila el valor a imprimir. \\
 \hline
-\texttt{IMPR} & \texttt{} & \\
+\texttt{IMLN} & \texttt{} & Desapila el valor y lo imprime, seguido de un salto de línea. \\
 \hline
-\texttt{LMEM 1} & \texttt{end.} & \\
+\texttt{LMEM 1} & \texttt{end.} & Libera las variables globales. \\
 \hline
-\texttt{PARA} & \texttt{} & \\
+\texttt{PARA} & \texttt{} & Detiene la máquina. Es la última instrucción de todo programa. \\
 \hline
 \caption{Traducción de \texttt{parametros\_funcion.pas} instrucción por instrucción.}
 \label{tab:parametros-funcion}
@@ -484,12 +480,12 @@ end.
       DSVF  L1       { n positivo }
 { write(1) }
       APCT  1        { n positivo 1 }
-      IMPR           { n positivo }
+      IMLN           { n positivo }
       DSVS  L2       { n positivo }
 L1    NADA           { n positivo }
 { write(0); }
       APCT  0        { n positivo 0 }
-      IMPR           { n positivo }
+      IMLN           { n positivo }
 L2    NADA           { n positivo }
 { if n = 0 then }
       APVL  0,0      { n positivo n }
@@ -498,7 +494,7 @@ L2    NADA           { n positivo }
       DSVF  L3       { n positivo }
 { write(n) }
       APVL  0,0      { n positivo n }
-      IMPR           { n positivo }
+      IMLN           { n positivo }
 L3    NADA           { n positivo }
 { end. }
       LMEM  2
@@ -507,64 +503,62 @@ L3    NADA           { n positivo }
 
 \subsubsection*{Razón de las instrucciones generadas}
 
-\todo[inline]{Completar la columna Razón. Las filas sin sentencia de origen pertenecen a la misma sentencia que la fila de arriba.}
-
 \begin{longtable}{|p{3.2cm}|p{5cm}|p{7cm}|}
 \hline
 \textbf{Instrucción} & \textbf{Sentencia de origen} & \textbf{Razón} \\
 \hline
 \endhead
-\texttt{INPP} & \texttt{program condicional;} & \\
+\texttt{INPP} & \texttt{program condicional;} & Inicializa la máquina. \\
 \hline
-\texttt{RMEM 2} & \texttt{positivo: boolean;} & \\
+\texttt{RMEM 2} & \texttt{positivo: boolean;} & Reserva lugar para las variables globales. \\
 \hline
-\texttt{LEER} & \texttt{read(n);} & \\
+\texttt{LEER} & \texttt{read(n);} & Lee un valor de la entrada y lo apila. \\
 \hline
-\texttt{ALVL 0,0} & \texttt{} & \\
+\texttt{ALVL 0,0} & \texttt{} & Desapila el valor y lo guarda en la variable. \\
 \hline
-\texttt{APVL 0,0} & \texttt{positivo := n > 0;} & \\
+\texttt{APVL 0,0} & \texttt{positivo := n > 0;} & Apila el primer operando. \\
 \hline
-\texttt{APCT 0} & \texttt{} & \\
+\texttt{APCT 0} & \texttt{} & Apila el segundo operando. \\
 \hline
-\texttt{CMMA} & \texttt{} & \\
+\texttt{CMMA} & \texttt{} & Reemplaza los dos operandos por 1 si el primero es mayor y por 0 si no. \\
 \hline
-\texttt{ALVL 0,1} & \texttt{} & \\
+\texttt{ALVL 0,1} & \texttt{} & Desapila el valor booleano y lo guarda en la variable. \\
 \hline
-\texttt{APVL 0,1} & \texttt{if positivo then} & \\
+\texttt{APVL 0,1} & \texttt{if positivo then} & Apila la condición. \\
 \hline
-\texttt{DSVF L1} & \texttt{} & \\
+\texttt{DSVF L1} & \texttt{} & Desapila la condición y, si es falsa, salta a la rama \texttt{else}. \\
 \hline
-\texttt{APCT 1} & \texttt{write(1)} & \\
+\texttt{APCT 1} & \texttt{write(1)} & Apila el valor a imprimir. \\
 \hline
-\texttt{IMPR} & \texttt{} & \\
+\texttt{IMLN} & \texttt{} & Desapila el valor y lo imprime, seguido de un salto de línea. \\
 \hline
-\texttt{DSVS L2} & \texttt{} & \\
+\texttt{DSVS L2} & \texttt{} & Saltea la rama \texttt{else}. \\
 \hline
-\texttt{L1 NADA} & \texttt{} & \\
+\texttt{L1 NADA} & \texttt{} & Destino del \texttt{DSVF}: comienza la rama \texttt{else}. \\
 \hline
-\texttt{APCT 0} & \texttt{write(0);} & \\
+\texttt{APCT 0} & \texttt{write(0);} & Apila el valor a imprimir. \\
 \hline
-\texttt{IMPR} & \texttt{} & \\
+\texttt{IMLN} & \texttt{} & Desapila el valor y lo imprime, seguido de un salto de línea. \\
 \hline
-\texttt{L2 NADA} & \texttt{} & \\
+\texttt{L2 NADA} & \texttt{} & Destino del \texttt{DSVS}: termina el condicional. \\
 \hline
-\texttt{APVL 0,0} & \texttt{if n = 0 then} & \\
+\texttt{APVL 0,0} & \texttt{if n = 0 then} & Apila el primer operando. \\
 \hline
-\texttt{APCT 0} & \texttt{} & \\
+\texttt{APCT 0} & \texttt{} & Apila el segundo operando. \\
 \hline
-\texttt{CMIG} & \texttt{} & \\
+\texttt{CMIG} & \texttt{} & Reemplaza los dos operandos por 1 si son iguales y por 0 si no. \\
 \hline
-\texttt{DSVF L3} & \texttt{} & \\
+\texttt{DSVF L3} & \texttt{} & Desapila la condición y, si es falsa, saltea la rama \texttt{then}. \\
 \hline
-\texttt{APVL 0,0} & \texttt{write(n)} & \\
+\texttt{APVL 0,0} & \texttt{write(n)} & Apila el valor a imprimir. \\
 \hline
-\texttt{IMPR} & \texttt{} & \\
+\texttt{IMLN} & \texttt{} & Desapila el valor y lo imprime, seguido de un salto de línea. \\
 \hline
-\texttt{L3 NADA} & \texttt{} & \\
+\texttt{L3 NADA} & \texttt{} & Destino del \texttt{DSVF}: termina el condicional sin \texttt{else}. \\
 \hline
-\texttt{LMEM 2} & \texttt{end.} & \\
+\texttt{LMEM 2} & \texttt{end.} & Libera las variables globales. \\
 \hline
-\texttt{PARA} & \texttt{} & \\
+\texttt{PARA} & \texttt{} & Detiene la máquina. \\
 \hline
 \caption{Traducción de \texttt{condicional.pas} instrucción por instrucción.}
 \label{tab:condicional}
@@ -623,7 +617,7 @@ L1    NADA           { i suma }
 L2    NADA           { i suma }
 { write(suma) }
       APVL  0,1      { i suma suma }
-      IMPR           { i suma }
+      IMLN           { i suma }
 { end. }
       LMEM  2
       PARA
@@ -631,62 +625,60 @@ L2    NADA           { i suma }
 
 \subsubsection*{Razón de las instrucciones generadas}
 
-\todo[inline]{Completar la columna Razón. Las filas sin sentencia de origen pertenecen a la misma sentencia que la fila de arriba.}
-
 \begin{longtable}{|p{3.2cm}|p{5cm}|p{7cm}|}
 \hline
 \textbf{Instrucción} & \textbf{Sentencia de origen} & \textbf{Razón} \\
 \hline
 \endhead
-\texttt{INPP} & \texttt{program repetitiva;} & \\
+\texttt{INPP} & \texttt{program repetitiva;} & Inicializa la máquina. \\
 \hline
-\texttt{RMEM 2} & \texttt{var i, suma: integer;} & \\
+\texttt{RMEM 2} & \texttt{var i, suma: integer;} & Reserva lugar para las variables globales. \\
 \hline
-\texttt{LEER} & \texttt{read(i);} & \\
+\texttt{LEER} & \texttt{read(i);} & Lee un valor de la entrada y lo apila. \\
 \hline
-\texttt{ALVL 0,0} & \texttt{} & \\
+\texttt{ALVL 0,0} & \texttt{} & Desapila el valor y lo guarda en la variable. \\
 \hline
-\texttt{APCT 0} & \texttt{suma := 0;} & \\
+\texttt{APCT 0} & \texttt{suma := 0;} & Apila una constante. \\
 \hline
-\texttt{ALVL 0,1} & \texttt{} & \\
+\texttt{ALVL 0,1} & \texttt{} & Desapila el valor y lo guarda en la variable. \\
 \hline
-\texttt{L1 NADA} & \texttt{while i > 0 do} & \\
+\texttt{L1 NADA} & \texttt{while i > 0 do} & Destino del \texttt{DSVS}: cada vuelta comienza evaluando la condición. \\
 \hline
-\texttt{APVL 0,0} & \texttt{} & \\
+\texttt{APVL 0,0} & \texttt{} & Apila el primer operando. \\
 \hline
-\texttt{APCT 0} & \texttt{} & \\
+\texttt{APCT 0} & \texttt{} & Apila el segundo operando. \\
 \hline
-\texttt{CMMA} & \texttt{} & \\
+\texttt{CMMA} & \texttt{} & Reemplaza los dos operandos por 1 si el primero es mayor y por 0 si no. \\
 \hline
-\texttt{DSVF L2} & \texttt{} & \\
+\texttt{DSVF L2} & \texttt{} & Desapila la condición y, si es falsa, sale del ciclo. \\
 \hline
-\texttt{APVL 0,1} & \texttt{suma := suma + i;} & \\
+\texttt{APVL 0,1} & \texttt{suma := suma + i;} & Apila el primer operando. \\
 \hline
-\texttt{APVL 0,0} & \texttt{} & \\
+\texttt{APVL 0,0} & \texttt{} & Apila el segundo operando. \\
 \hline
-\texttt{SUMA} & \texttt{} & \\
+\texttt{SUMA} & \texttt{} & Reemplaza los dos operandos por su suma. \\
 \hline
-\texttt{ALVL 0,1} & \texttt{} & \\
+\texttt{ALVL 0,1} & \texttt{} & Desapila el resultado y lo guarda en la variable. \\
 \hline
-\texttt{APVL 0,0} & \texttt{i := i - 1} & \\
+\texttt{APVL 0,0} & \texttt{i := i - 1} & Apila el primer operando. \\
 \hline
-\texttt{APCT 1} & \texttt{} & \\
+\texttt{APCT 1} & \texttt{} & Apila el segundo operando. \\
 \hline
-\texttt{SUST} & \texttt{} & \\
+\texttt{SUST} & \texttt{} & Reemplaza los dos operandos por su diferencia. \\
 \hline
-\texttt{ALVL 0,0} & \texttt{} & \\
+\texttt{ALVL 0,0} & \texttt{} & Desapila el resultado y lo guarda en la variable. \\
 \hline
-\texttt{DSVS L1} & \texttt{end;} & \\
+\texttt{DSVS L1} & \texttt{end;} & Vuelve al inicio del ciclo. \\
 \hline
-\texttt{L2 NADA} & \texttt{} & \\
+\texttt{L2 NADA} & \texttt{} & Destino del \texttt{DSVF}: termina el ciclo. \\
 \hline
-\texttt{APVL 0,1} & \texttt{write(suma)} & \\
+\texttt{APVL 0,1} & \texttt{write(suma)} & Apila el valor a imprimir. \\
 \hline
-\texttt{IMPR} & \texttt{} & \\
+\texttt{IMLN} & \texttt{} & Desapila el valor y lo imprime, seguido de un salto de línea. \\
 \hline
-\texttt{LMEM 2} & \texttt{end.} & \\
+\texttt{LMEM 2} & \texttt{end.} & Libera las variables globales. \\
 \hline
-\texttt{PARA} & \texttt{} & \\
+\texttt{PARA} & \texttt{} & Detiene la máquina. \\
 \hline
 \caption{Traducción de \texttt{repetitiva.pas} instrucción por instrucción.}
 \label{tab:repetitiva}
@@ -749,7 +741,8 @@ El compilador está contenido dentro de un ejecutable, por lo que no es necesari
 \begin{enumerate}
     \item Abrir una terminal o consola de comandos.
     \item Compilar un programa:\\
-    \verb|$ ./compilador archivo.pas|
+    \verb|$ ./compilador [-c] archivo.pas|\\
+    Por defecto el \texttt{.mepa} se genera sin comentarios, porque el intérprete de la cátedra (\texttt{mepaV2015}) no los admite. Con la opción \texttt{-c} se agregan como comentarios la línea del fuente encima de sus instrucciones y la pila simbólica a la derecha de cada una; ese archivo solo lo ejecuta nuestro intérprete \texttt{mepa.py}.
     \item Resultados posibles:
     \begin{itemize}
         \item \todo[inline]{Éxito: se escribe archivo.mepa junto al fuente, se imprime "Compilación exitosa: archivo.mepa" y las tablas de símbolos; código de salida 0.}
@@ -758,6 +751,8 @@ El compilador está contenido dentro de un ejecutable, por lo que no es necesari
     \item Ejecutar el código generado con el intérprete (opcional):\\
     \verb|$ python3 mepa.py archivo.mepa [valores de entrada]|\\
     Los valores de entrada son los números que leen las sentencias \texttt{read}, en orden.
+    \item También puede ejecutarse con el intérprete de la cátedra, que lee la entrada por teclado (solo el \texttt{.mepa} generado sin \texttt{-c}):\\
+    \verb|$ mepaV2015 archivo.mepa|
 \end{enumerate}
 
 El intérprete muestra cada instrucción ejecutada junto con el contenido de la pila después de ejecutarla:
@@ -766,19 +761,23 @@ El intérprete muestra cada instrucción ejecutada junto con el contenido de la 
     \item La pila se lee de izquierda (fondo) a derecha (tope). Un \texttt{?} indica una posición reservada que todavía no tiene valor.
     \item Antes de las instrucciones de cada sentencia se muestra, entre llaves, la línea del programa fuente de la que provienen.
     \item Mientras un subprograma de nivel $k$ está activo, la marca \texttt{|D$k$|} indica la posición a la que apunta $D[k]$. Las variables locales quedan a su derecha (desplazamientos 0, 1, \ldots) y los parámetros a su izquierda (desplazamientos negativos).
-    \item Cuando se ejecuta \texttt{IMPR}, se indica el valor impreso con \texttt{=> imprime}.
+    \item Cuando se ejecuta \texttt{IMLN}, se indica el valor impreso con \texttt{=> imprime}.
     \item Si ocurre un error de ejecución, la traza se detiene en la instrucción que lo produjo y se informa el error.
 \end{itemize}
 
 \subsection{Tabla de Errores y Tratamiento Sugerido}
-
-\todo[inline]{Reutilizar las tablas de errores léxicos, sintácticos y semánticos del TP anterior y agregar la fila nueva.}
 
 \begin{longtable}{|p{5.5cm}|p{5cm}|p{4.5cm}|}
 \hline
 \textbf{Mensaje} & \textbf{Descripción} & \textbf{Fase de Detección} \\
 \hline
 \endhead
+\texttt{Se esperaba 'X', se encontró 'Y'} & El token actual no coincide con el esperado por la regla gramatical en curso. & Función \texttt{match()}, invocada desde cualquier no-terminal. \\
+\hline
+\texttt{Sentencia inválida} & El token actual no inicia ninguna sentencia válida (no es ID, IF, WHILE, BEGIN, READ ni WRITE). & No-terminal \texttt{sentencia}. \\
+\hline
+\texttt{Tokens inesperados después del final del programa} & Existen tokens adicionales después del punto final que cierra el programa. & Verificación final en \texttt{parse()}. \\
+\hline
 \texttt{Hubo errores léxicos: no se genera código} & El análisis terminó pero el analizador léxico reportó al menos un error. & Al finalizar el análisis, antes de escribir el \texttt{.mepa}. \\
 \hline
 \caption{Tabla de Errores.}
@@ -831,7 +830,7 @@ SUMA            ? 9
 ALVL 0,0        9
 { write(r) }
 APVL 0,0        9 9
-IMPR            9   => imprime 9
+IMLN            9   => imprime 9
 { end. }
 LMEM 1
 PARA

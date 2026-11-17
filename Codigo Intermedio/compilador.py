@@ -107,14 +107,15 @@ class CodigoMepa:
         return [' '.join(p for p in (etq, instr, ','.join(map(str, args))) if p)
                 for etq, instr, args, _, _ in self.lineas]
 
-    # La línea del fuente va como comentario arriba de sus instrucciones; la pila, a la derecha de cada una.
-    def texto(self):
+    # Con comentarios, la línea del fuente va arriba de sus instrucciones y la pila, a la derecha de cada una.
+    # Sin comentarios es lo que acepta el intérprete de la cátedra, que no admite '{ }'.
+    def texto(self, comentarios=False):
         salida = []
         for etiqueta, instr, args, comentario, pila in self.lineas:
-            if comentario:
+            if comentarios and comentario:
                 salida.append(f"{{ {comentario} }}")
             linea = f"{etiqueta or '':<6}{instr:<6}{','.join(map(str, args))}"
-            if pila:
+            if comentarios and pila:
                 linea = f"{linea:<20} {{ {pila} }}"
             salida.append(linea.rstrip())
         return ''.join(l + '\n' for l in salida)
@@ -410,7 +411,7 @@ class Parser:
             pila.append((simbolo, False))
         elif instr == 'LEER':
             pila.append(('read', False))
-        elif instr in ('ALVL', 'DSVF', 'IMPR'):
+        elif instr in ('ALVL', 'DSVF', 'IMLN'):
             pila.pop()
         elif instr in SIMBOLO_OP:
             der, izq = pila.pop(), pila.pop()
@@ -804,7 +805,7 @@ class Parser:
         self._match('PAR_ABRE')
         self._expresion()
         self._match('PAR_CIERRA')
-        self._emitir('IMPR')
+        self._emitir('IMLN')   # IMLN y no IMPR: el intérprete de la cátedra imprime IMPR sin separador
 
     # Junta en 'tipos' el tipo de cada argumento.
     def _lista_expresion(self, tipos):
@@ -1005,18 +1006,23 @@ def compilar(ruta):
 
 
 if __name__ == "__main__":
-    if len(sys.argv) != 2:
-        print("Utilizar el comando: compilador <archivo.pas>")
+    args = sys.argv[1:]
+    comentarios = '-c' in args
+    if comentarios:
+        args.remove('-c')
+    if len(args) != 1:
+        print("Utilizar el comando: compilador [-c] <archivo.pas>")
+        print("  -c  comenta el .mepa con la línea del fuente y la pila simbólica")
         sys.exit(1)
 
     try:
-        parser = analizar(sys.argv[1])
+        parser = analizar(args[0])
     except ParserError as e:
         print(e)
         sys.exit(1)
 
-    salida = os.path.splitext(sys.argv[1])[0] + '.mepa'
+    salida = os.path.splitext(args[0])[0] + '.mepa'
     with open(salida, 'w') as f:
-        f.write(parser.codigo.texto())
+        f.write(parser.codigo.texto(comentarios))
     print(f"Compilación exitosa: {salida}")
     parser.print_symbol_tables()

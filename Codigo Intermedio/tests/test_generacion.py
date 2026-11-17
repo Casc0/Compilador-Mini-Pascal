@@ -15,35 +15,39 @@ class TestPrograma(unittest.TestCase):
         self.assertEqual(instrucciones(fuente), [
             "INPP", "RMEM 2",
             "APCT 1", "ALVL 0,0", "APCT 4", "ALVL 0,1",
-            "APVL 0,0", "APVL 0,1", "SUMA", "IMPR",
+            "APVL 0,0", "APVL 0,1", "SUMA", "IMLN",
             "LMEM 2", "PARA"])
 
     def test_programa_sin_var(self):
         self.assertEqual(instrucciones("program p; begin write(7) end."),
-                         ["INPP", "APCT 7", "IMPR", "PARA"])
+                         ["INPP", "APCT 7", "IMLN", "PARA"])
 
     def test_booleanos_globales(self):
         self.assertEqual(correr("program p; var b: boolean; begin b := true; write(b) end."), [1])
 
     def test_comentario_con_linea_fuente(self):
-        texto = compilar_texto("program p;\nvar a: integer;\nbegin\n  a := 1\nend.")
+        texto = compilar_texto("program p;\nvar a: integer;\nbegin\n  a := 1\nend.", comentarios=True)
         self.assertIn("{ a := 1 }", texto)
         self.assertEqual(texto.count("{ a := 1 }"), 1)   # sólo en la primera instrucción de esa línea
 
     def test_comentarios_pascal_en_la_linea(self):
         fuente = ("program p; var x: integer;\nbegin\n  x := 1; { asigno uno }\n"
                   "  { com\n  multilinea } x := 2;\n  write(x)\nend.")
-        texto = compilar_texto(fuente)
+        texto = compilar_texto(fuente, comentarios=True)
         self.assertIn("{ x := 1; }", texto)
         self.assertIn("{ x := 2; }", texto)
         self.assertEqual(correr(fuente), [2])
+
+    def test_sin_comentarios_por_defecto(self):
+        texto = compilar_texto("program p;\nvar a: integer;\nbegin\n  a := 1;\n  write(a)\nend.")
+        self.assertNotIn("{", texto)
 
     def test_texto_lo_entiende_el_interprete(self):
         self.assertEqual(correr("program p;\nbegin\n  write(2 + 3)\nend."), [5])
 
 
 def lineas(fuente):
-    return [' '.join(l.split()) for l in compilar_texto(fuente).splitlines()]
+    return [' '.join(l.split()) for l in compilar_texto(fuente, comentarios=True).splitlines()]
 
 
 class TestPilaSimbolica(unittest.TestCase):
@@ -125,12 +129,12 @@ class TestSentencias(unittest.TestCase):
 
     def test_if_codigo_exacto(self):
         self.assertEqual(instrucciones("program p; begin if true then write(1) else write(2) end."), [
-            "INPP", "APCT 1", "DSVF L1", "APCT 1", "IMPR",
-            "DSVS L2", "L1 NADA", "APCT 2", "IMPR", "L2 NADA", "PARA"])
+            "INPP", "APCT 1", "DSVF L1", "APCT 1", "IMLN",
+            "DSVS L2", "L1 NADA", "APCT 2", "IMLN", "L2 NADA", "PARA"])
 
     def test_while_codigo_exacto(self):
         self.assertEqual(instrucciones("program p; begin while false do write(1) end."), [
-            "INPP", "L1 NADA", "APCT 0", "DSVF L2", "APCT 1", "IMPR", "DSVS L1", "L2 NADA", "PARA"])
+            "INPP", "L1 NADA", "APCT 0", "DSVF L2", "APCT 1", "IMLN", "DSVS L1", "L2 NADA", "PARA"])
 
 
 # Programa de MEPA2015 pág. 12, adaptado a la gramática: sin el ';' antes de else
@@ -163,7 +167,8 @@ class TestProcedimientos(unittest.TestCase):
 
     def test_misma_traduccion_que_el_apunte(self):
         from test_mepa import COD_P_N_G
-        esperado = [' '.join(l.split()) for l in COD_P_N_G.splitlines() if l.strip()]
+        # El apunte escribe con IMPR; generamos IMLN para que el intérprete de la cátedra separe la salida.
+        esperado = [' '.join(l.split()).replace('IMPR', 'IMLN') for l in COD_P_N_G.splitlines() if l.strip()]
         self.assertEqual(instrucciones(FUENTE_P_N_G), esperado)
 
     def test_parametros_desplazamiento_negativo(self):
@@ -226,7 +231,7 @@ class TestFunciones(unittest.TestCase):
     def test_llamada_reserva_lugar_antes_de_los_argumentos(self):
         cod = instrucciones("program p; function f(a: integer): integer; begin f := a end; begin write(f(7)) end.")
         i = cod.index("L1 NADA")
-        self.assertEqual(cod[i + 1:i + 5], ["RMEM 1", "APCT 7", "LLPR L2", "IMPR"])
+        self.assertEqual(cod[i + 1:i + 5], ["RMEM 1", "APCT 7", "LLPR L2", "IMLN"])
 
     def test_funcion_booleana(self):
         fuente = """program p;
@@ -243,12 +248,12 @@ class TestCompilador(unittest.TestCase):
         with self.assertRaises(ParserError):
             compilar_texto("program p; var a: integer; begin a := 1 # end.")
 
-    def _correr_cli(self, fuente):
+    def _correr_cli(self, fuente, *opciones):
         d = tempfile.mkdtemp()
         ruta = os.path.join(d, "prog.pas")
         with open(ruta, "w") as f:
             f.write(fuente)
-        res = subprocess.run([sys.executable, os.path.join(CARPETA, "compilador.py"), ruta],
+        res = subprocess.run([sys.executable, os.path.join(CARPETA, "compilador.py"), *opciones, ruta],
                              capture_output=True, text=True)
         return res, os.path.join(d, "prog.mepa")
 
@@ -259,6 +264,13 @@ class TestCompilador(unittest.TestCase):
         with open(mepa) as f:
             self.assertEqual(f.read(), compilar_texto(fuente))
         self.assertIn("prog.mepa", res.stdout)
+
+    def test_cli_con_comentarios(self):
+        fuente = "program p; var a: integer; begin a := 2; write(a * 3) end."
+        res, mepa = self._correr_cli(fuente, "-c")
+        self.assertEqual(res.returncode, 0, res.stdout)
+        with open(mepa) as f:
+            self.assertEqual(f.read(), compilar_texto(fuente, comentarios=True))
 
     def test_cli_error_no_genera(self):
         res, mepa = self._correr_cli("program p; begin x := 1 end.")

@@ -16,9 +16,9 @@ def _compilar(fuente):
         return compilar(ruta)
 
 
-# Código MEPA tal como se escribe en el .mepa (columnas y comentarios).
-def compilar_texto(fuente):
-    return _compilar(fuente).texto()
+# Código MEPA tal como se escribe en el .mepa (columnas; con comentarios si se pide, como con -c).
+def compilar_texto(fuente, comentarios=False):
+    return _compilar(fuente).texto(comentarios)
 
 
 # Instrucciones sin formato ni comentarios: "APVL 0,1", "L1 NADA", "L2 ENPR 1".
