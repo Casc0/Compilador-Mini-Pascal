@@ -1,0 +1,78 @@
+{ program parametros; }
+      INPP
+{ activo: boolean; }
+      RMEM  2        { total activo }
+      DSVS  L1       { total activo }
+{ function ajustar(valor: integer; duplicar: boolean): integer; }
+L2    ENPR  1        { ... ajustar valor duplicar ret D1ant |D1| }
+{ var aux: integer; }
+      RMEM  1        { ... ajustar valor duplicar ret D1ant |D1| aux }
+{ aux := valor + 1; }
+      APVL  1,-4     { ... ajustar valor duplicar ret D1ant |D1| aux valor }
+      APCT  1        { ... ajustar valor duplicar ret D1ant |D1| aux valor 1 }
+      SUMA           { ... ajustar valor duplicar ret D1ant |D1| aux valor+1 }
+      ALVL  1,0      { ... ajustar valor duplicar ret D1ant |D1| aux }
+{ if duplicar then }
+      APVL  1,-3     { ... ajustar valor duplicar ret D1ant |D1| aux duplicar }
+      DSVF  L3       { ... ajustar valor duplicar ret D1ant |D1| aux }
+{ ajustar := aux * 2 }
+      APVL  1,0      { ... ajustar valor duplicar ret D1ant |D1| aux aux }
+      APCT  2        { ... ajustar valor duplicar ret D1ant |D1| aux aux 2 }
+      MULT           { ... ajustar valor duplicar ret D1ant |D1| aux aux*2 }
+      ALVL  1,-5     { ... ajustar valor duplicar ret D1ant |D1| aux }
+      DSVS  L4       { ... ajustar valor duplicar ret D1ant |D1| aux }
+L3    NADA           { ... ajustar valor duplicar ret D1ant |D1| aux }
+{ ajustar := aux }
+      APVL  1,0      { ... ajustar valor duplicar ret D1ant |D1| aux aux }
+      ALVL  1,-5     { ... ajustar valor duplicar ret D1ant |D1| aux }
+L4    NADA           { ... ajustar valor duplicar ret D1ant |D1| aux }
+{ end; }
+      LMEM  1        { ... ajustar valor duplicar ret D1ant |D1| }
+      RTPR  1,2      { total activo }
+{ procedure informar(n: integer; ok: boolean); }
+L5    ENPR  1        { ... n ok ret D1ant |D1| }
+{ if ok and (n > 0) then }
+      APVL  1,-3     { ... n ok ret D1ant |D1| ok }
+      APVL  1,-4     { ... n ok ret D1ant |D1| ok n }
+      APCT  0        { ... n ok ret D1ant |D1| ok n 0 }
+      CMMA           { ... n ok ret D1ant |D1| ok n>0 }
+      CONJ           { ... n ok ret D1ant |D1| ok and (n>0) }
+      DSVF  L6       { ... n ok ret D1ant |D1| }
+{ write(n) }
+      APVL  1,-4     { ... n ok ret D1ant |D1| n }
+      IMPR           { ... n ok ret D1ant |D1| }
+      DSVS  L7       { ... n ok ret D1ant |D1| }
+L6    NADA           { ... n ok ret D1ant |D1| }
+{ write(0) }
+      APCT  0        { ... n ok ret D1ant |D1| 0 }
+      IMPR           { ... n ok ret D1ant |D1| }
+L7    NADA           { ... n ok ret D1ant |D1| }
+{ end; }
+      RTPR  1,2      { total activo }
+L1    NADA           { total activo }
+{ read(total); }
+      LEER           { total activo read }
+      ALVL  0,0      { total activo }
+{ activo := total >= 10; }
+      APVL  0,0      { total activo total }
+      APCT  10       { total activo total 10 }
+      CMYI           { total activo total>=10 }
+      ALVL  0,1      { total activo }
+{ total := ajustar(total, activo); }
+      RMEM  1        { total activo ajustar }
+      APVL  0,0      { total activo ajustar total }
+      APVL  0,1      { total activo ajustar total activo }
+      LLPR  L2       { total activo ajustar(total,activo) }
+      ALVL  0,0      { total activo }
+{ informar(total, not activo or (total = 20)) }
+      APVL  0,0      { total activo total }
+      APVL  0,1      { total activo total activo }
+      NEGA           { total activo total not activo }
+      APVL  0,0      { total activo total not activo total }
+      APCT  20       { total activo total not activo total 20 }
+      CMIG           { total activo total not activo total=20 }
+      DISJ           { total activo total (not activo) or (total=20) }
+      LLPR  L5       { total activo }
+{ end. }
+      LMEM  2
+      PARA

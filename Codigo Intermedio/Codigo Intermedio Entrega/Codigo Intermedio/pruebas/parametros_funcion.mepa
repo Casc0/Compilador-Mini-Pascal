@@ -1,0 +1,38 @@
+{ program parametros; }
+      INPP
+{ var r: integer; }
+      RMEM  1        { r }
+      DSVS  L1       { r }
+{ function maximo(a: integer; b: integer): integer; }
+L2    ENPR  1        { ... maximo a b ret D1ant |D1| }
+{ if a > b then }
+      APVL  1,-4     { ... maximo a b ret D1ant |D1| a }
+      APVL  1,-3     { ... maximo a b ret D1ant |D1| a b }
+      CMMA           { ... maximo a b ret D1ant |D1| a>b }
+      DSVF  L3       { ... maximo a b ret D1ant |D1| }
+{ maximo := a }
+      APVL  1,-4     { ... maximo a b ret D1ant |D1| a }
+      ALVL  1,-5     { ... maximo a b ret D1ant |D1| }
+      DSVS  L4       { ... maximo a b ret D1ant |D1| }
+L3    NADA           { ... maximo a b ret D1ant |D1| }
+{ maximo := b }
+      APVL  1,-3     { ... maximo a b ret D1ant |D1| b }
+      ALVL  1,-5     { ... maximo a b ret D1ant |D1| }
+L4    NADA           { ... maximo a b ret D1ant |D1| }
+{ end; }
+      RTPR  1,2      { r }
+L1    NADA           { r }
+{ r := maximo(3, 8) + 1; }
+      RMEM  1        { r maximo }
+      APCT  3        { r maximo 3 }
+      APCT  8        { r maximo 3 8 }
+      LLPR  L2       { r maximo(3,8) }
+      APCT  1        { r maximo(3,8) 1 }
+      SUMA           { r maximo(3,8)+1 }
+      ALVL  0,0      { r }
+{ write(r) }
+      APVL  0,0      { r r }
+      IMPR           { r }
+{ end. }
+      LMEM  1
+      PARA

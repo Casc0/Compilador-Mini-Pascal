@@ -1,0 +1,35 @@
+{ program repetitiva; }
+      INPP
+{ var i, suma: integer; }
+      RMEM  2        { i suma }
+{ read(i); }
+      LEER           { i suma read }
+      ALVL  0,0      { i suma }
+{ suma := 0; }
+      APCT  0        { i suma 0 }
+      ALVL  0,1      { i suma }
+{ while i > 0 do }
+L1    NADA           { i suma }
+      APVL  0,0      { i suma i }
+      APCT  0        { i suma i 0 }
+      CMMA           { i suma i>0 }
+      DSVF  L2       { i suma }
+{ suma := suma + i; }
+      APVL  0,1      { i suma suma }
+      APVL  0,0      { i suma suma i }
+      SUMA           { i suma suma+i }
+      ALVL  0,1      { i suma }
+{ i := i - 1 }
+      APVL  0,0      { i suma i }
+      APCT  1        { i suma i 1 }
+      SUST           { i suma i-1 }
+      ALVL  0,0      { i suma }
+{ end; }
+      DSVS  L1       { i suma }
+L2    NADA           { i suma }
+{ write(suma) }
+      APVL  0,1      { i suma suma }
+      IMPR           { i suma }
+{ end. }
+      LMEM  2
+      PARA
